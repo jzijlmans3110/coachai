@@ -32,6 +32,7 @@ Deno.serve(async (req) => {
     if (!clientRow) return json({ error: 'Ongeldig portaal token' })
 
     const { coach_id, ...client } = clientRow
+    if (!coach_id) return json({ error: 'Client heeft geen gekoppelde coach' })
 
     const [{ data: programs }, { data: checkIns }, { data: mealPlans }, { data: milestones }, { data: broadcasts }, { data: challenges }, { data: challengeEntries }] = await Promise.all([
       supabase.from('programs').select('*').eq('client_id', client.id).order('created_at', { ascending: false }).limit(3),

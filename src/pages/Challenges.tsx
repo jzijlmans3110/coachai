@@ -33,12 +33,16 @@ export default function Challenges() {
 
   const load = async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
-    const [{ data: ch }, { data: cl }, { data: en }] = await Promise.all([
+    if (!user) { setLoading(false); return }
+    const [{ data: ch }, { data: cl }] = await Promise.all([
       supabase.from('challenges').select('*').eq('coach_id', user.id).order('created_at', { ascending: false }),
       supabase.from('clients').select('*').eq('coach_id', user.id),
-      supabase.from('challenge_entries').select('*'),
     ])
+    const challengeIds = (ch ?? []).map(c => c.id)
+    // Only fetch entries for this coach's challenges (security fix)
+    const { data: en } = challengeIds.length > 0
+      ? await supabase.from('challenge_entries').select('*').in('challenge_id', challengeIds)
+      : { data: [] }
     setChallenges(ch ?? [])
     setClients(cl ?? [])
     setEntries(en ?? [])
@@ -47,9 +51,10 @@ export default function Challenges() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (saving) return
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return
+    if (!user) { setSaving(false); return }
     await supabase.from('challenges').insert({
       coach_id: user.id,
       title: form.title,
@@ -83,14 +88,20 @@ export default function Challenges() {
       client,
       entry: challengeEntries.find(e => e.client_id === client.id) ?? null,
     }))
-      .sort((a, b) => (b.entry?.value ?? -1) - (a.entry?.value ?? -1))
+      .sort((a, b) => {
+        if (a.entry === null && b.entry === null) return 0
+        if (a.entry === null) return 1
+        if (b.entry === null) return -1
+        return b.entry.value - a.entry.value
+      })
       .map((item, i) => ({ ...item, rank: i + 1 }))
     return ranked
   }
 
   const daysLeft = (end: string) => {
-    const diff = Math.ceil((new Date(end).getTime() - Date.now()) / 86400000)
-    return diff
+    // Use end-of-day to avoid UTC midnight timezone issues
+    const endMs = new Date(end + 'T23:59:59').getTime()
+    return Math.ceil((endMs - Date.now()) / 86400000)
   }
 
   if (loading) return (

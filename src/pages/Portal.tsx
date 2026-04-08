@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -33,6 +33,8 @@ export default function Portal() {
   const [activeWeek, setActiveWeek] = useState(0)
   const [entryValues, setEntryValues] = useState<Record<string, string>>({})
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
+  const [entryError, setEntryError] = useState<string | null>(null)
+  const savingRef = useRef<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -56,16 +58,23 @@ export default function Portal() {
   const handleSubmitEntry = async (challengeId: string) => {
     const val = parseFloat(entryValues[challengeId] ?? '')
     if (isNaN(val) || !client) return
+    if (savingRef.current === challengeId) return // double-tap guard
+    savingRef.current = challengeId
     setSavingEntry(challengeId)
+    setEntryError(null)
+    const now = new Date().toISOString()
     const existing = challengeEntries.find(e => e.challenge_id === challengeId && e.client_id === client.id)
     if (existing) {
-      await supabase.from('challenge_entries').update({ value: val, updated_at: new Date().toISOString() }).eq('id', existing.id)
-      setChallengeEntries(prev => prev.map(e => e.id === existing.id ? { ...e, value: val } : e))
+      const { error } = await supabase.from('challenge_entries').update({ value: val, updated_at: now }).eq('id', existing.id)
+      if (error) { setEntryError('Opslaan mislukt, probeer opnieuw.') }
+      else { setChallengeEntries(prev => prev.map(e => e.id === existing.id ? { ...e, value: val, updated_at: now } : e)) }
     } else {
-      const { data } = await supabase.from('challenge_entries').insert({ challenge_id: challengeId, client_id: client.id, value: val }).select().single()
-      if (data) setChallengeEntries(prev => [...prev, data])
+      const { data, error } = await supabase.from('challenge_entries').insert({ challenge_id: challengeId, client_id: client.id, value: val, updated_at: now }).select().single()
+      if (error || !data) { setEntryError('Opslaan mislukt, probeer opnieuw.') }
+      else { setChallengeEntries(prev => [...prev, data]) }
     }
     setEntryValues(prev => ({ ...prev, [challengeId]: '' }))
+    savingRef.current = null
     setSavingEntry(null)
   }
 
@@ -339,7 +348,8 @@ export default function Portal() {
             ) : challenges.map(ch => {
               const myEntry = challengeEntries.find(e => e.challenge_id === ch.id && e.client_id === client.id)
               const pct = myEntry ? Math.min((myEntry.value / ch.target) * 100, 100) : 0
-              const days = Math.ceil((new Date(ch.end_date).getTime() - Date.now()) / 86400000)
+              const days = Math.ceil((new Date(ch.end_date + 'T23:59:59').getTime() - Date.now()) / 86400000)
+              const isActive = days > 0
               return (
                 <div key={ch.id} className="bg-white/5 border border-white/10 rounded-2xl p-5">
                   <div className="flex items-start justify-between gap-3 mb-3">
@@ -348,7 +358,7 @@ export default function Portal() {
                       {ch.description && <p className="text-xs text-slate-400 mt-0.5">{ch.description}</p>}
                     </div>
                     <span className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">
-                      {days > 0 ? `${days}d over` : 'Afgelopen'}
+                      {days > 0 ? `${days}d over` : days === 0 ? 'Eindigt vandaag' : 'Afgelopen'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
@@ -361,7 +371,10 @@ export default function Portal() {
                       style={{ width: `${pct}%` }}
                     />
                   </div>
-                  {days > 0 && (
+                  {entryError && savingEntry === null && (
+                    <p className="text-xs text-rose-400 mb-2">{entryError}</p>
+                  )}
+                  {isActive && (
                     <div className="flex gap-2">
                       <input
                         type="number"

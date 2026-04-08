@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, ChevronRight, Crown, Megaphone, Send, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
@@ -15,6 +15,9 @@ export default function Clients() {
   const [broadcastMessage, setBroadcastMessage] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const sentTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => () => { if (sentTimerRef.current) clearTimeout(sentTimerRef.current) }, [])
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -45,7 +48,8 @@ export default function Clients() {
     setBroadcastMessage('')
     setSending(false)
     setSent(true)
-    setTimeout(() => setSent(false), 3000)
+    if (sentTimerRef.current) clearTimeout(sentTimerRef.current)
+    sentTimerRef.current = setTimeout(() => setSent(false), 3000)
     loadData()
   }
 
@@ -183,7 +187,7 @@ export default function Clients() {
             />
             <button
               type="submit"
-              disabled={sending || !broadcastTitle.trim() || !broadcastMessage.trim()}
+              disabled={sending || !broadcastTitle.trim() || !broadcastMessage.trim() || clients.length === 0}
               className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-colors ${
                 sent
                   ? 'bg-emerald-500 text-white'
