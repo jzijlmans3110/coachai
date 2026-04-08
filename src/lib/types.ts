@@ -23,6 +23,10 @@ export interface Client {
   training_time: 'ochtend' | 'middag' | 'avond' | 'wisselend' | null
   medical_notes: string | null
   phone: string | null
+  status: 'intake' | 'actief' | 'inactief' | 'gestopt' | null
+  portal_token: string | null
+  training_days: string[] | null
+  intake_notes: string | null
   created_at: string
 }
 

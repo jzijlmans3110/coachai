@@ -33,7 +33,7 @@ export default function Invoices() {
       setCoachId(user.id)
       const [{ data: inv }, { data: cli }] = await Promise.all([
         supabase.from('invoices').select('*').eq('coach_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('clients').select('id, full_name').eq('coach_id', user.id).order('full_name'),
+        supabase.from('clients').select('*').eq('coach_id', user.id).order('full_name'),
       ])
       setInvoices(inv ?? [])
       setClients(cli ?? [])

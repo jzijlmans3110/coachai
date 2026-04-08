@@ -26,7 +26,7 @@ export default function Templates() {
       if (!user) return
       const [{ data: tmpl }, { data: cli }] = await Promise.all([
         supabase.from('program_templates').select('*').eq('coach_id', user.id).order('created_at', { ascending: false }),
-        supabase.from('clients').select('id, full_name, goal, level').eq('coach_id', user.id).eq('status', 'actief').order('full_name'),
+        supabase.from('clients').select('*').eq('coach_id', user.id).eq('status', 'actief').order('full_name'),
       ])
       setTemplates(tmpl ?? [])
       setClients(cli ?? [])
