@@ -4,6 +4,51 @@ export interface Coach {
   stripe_customer_id: string | null
   plan: 'free' | 'pro'
   created_at: string
+  intake_token: string | null
+  referral_code: string | null
+  referred_by: string | null
+}
+
+export interface ProgramTemplate {
+  id: string
+  coach_id: string
+  title: string
+  weeks: number
+  content: ProgramContent
+  created_at: string
+}
+
+export interface Benchmark {
+  id: string
+  client_id: string
+  exercise: string
+  value: number
+  unit: string
+  recorded_at: string
+  notes: string | null
+  created_at: string
+}
+
+export interface ProgressPhoto {
+  id: string
+  client_id: string
+  photo_url: string
+  label: string | null
+  taken_at: string
+  notes: string | null
+  created_at: string
+}
+
+export interface Invoice {
+  id: string
+  coach_id: string
+  client_id: string | null
+  amount_cents: number
+  description: string
+  status: 'open' | 'betaald' | 'verlopen'
+  due_date: string | null
+  paid_at: string | null
+  created_at: string
 }
 
 export interface Client {

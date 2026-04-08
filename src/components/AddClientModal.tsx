@@ -62,7 +62,7 @@ export default function AddClientModal({ onClose, onSuccess }: Props) {
       days_per_week: form.days_per_week,
       training_time: form.training_time || null,
       experience_years: form.experience_years ? Number(form.experience_years) : null,
-      equipment: form.equipment.map(e => e.toLowerCase()),
+      equipment: form.equipment,
       injuries: form.injuries || null,
       medical_notes: form.medical_notes || null,
     })

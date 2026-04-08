@@ -55,6 +55,7 @@ export default function Portal() {
     if (checkIns.length === 0) return null
     const unique = new Set(checkIns.map(c => c.week_number)).size
     const max = Math.max(...checkIns.map(c => c.week_number))
+    if (max === 0) return 100
     return Math.round((unique / max) * 100)
   })()
 

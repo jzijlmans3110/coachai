@@ -18,6 +18,14 @@ const navItems = [
   { to: '/settings', icon: Settings, label: 'Instellingen' },
 ]
 
+// Bottom nav shows only the 4 most important items on mobile
+const bottomNavItems = [
+  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/clients', icon: Users, label: 'Clients' },
+  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
+  { to: '/calendar', icon: Calendar, label: 'Kalender' },
+]
+
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
 
@@ -28,8 +36,8 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <div className="flex min-h-screen bg-slate-50">
-      {/* Sidebar */}
-      <aside className="w-60 bg-sidebar flex flex-col fixed inset-y-0 left-0 z-10">
+      {/* Sidebar — desktop only */}
+      <aside className="w-60 bg-sidebar flex-col fixed inset-y-0 left-0 z-10 hidden md:flex">
         {/* Logo */}
         <div className="flex items-center gap-2.5 px-5 py-6">
           <div className="bg-brand-600 rounded-lg p-1.5 flex items-center justify-center">
@@ -76,10 +84,67 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </aside>
 
+      {/* Mobile top bar */}
+      <header className="md:hidden fixed top-0 left-0 right-0 z-10 bg-sidebar flex items-center justify-between px-4 h-14" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+        <div className="flex items-center gap-2">
+          <div className="bg-brand-600 rounded-lg p-1 flex items-center justify-center">
+            <Zap className="h-3.5 w-3.5 text-white" fill="white" />
+          </div>
+          <span className="font-bold text-white text-sm tracking-wide">COACH<span className="text-brand-400">AI</span></span>
+        </div>
+        <NavLink to="/settings" className={({ isActive }) =>
+          `p-2 rounded-lg transition-all ${isActive ? 'text-white' : 'text-slate-400'}`
+        }>
+          <Settings className="h-4.5 w-4.5" />
+        </NavLink>
+      </header>
+
       {/* Main content */}
-      <main className="flex-1 ml-60 min-h-screen overflow-auto">
+      <main className="flex-1 md:ml-60 min-h-screen overflow-auto pb-20 md:pb-0 pt-14 md:pt-0">
         {children}
       </main>
+
+      {/* Bottom nav — mobile only */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-10 bg-sidebar border-t border-white/5 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
+        {bottomNavItems.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `flex-1 flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-all ${
+                isActive ? 'text-white' : 'text-slate-500'
+              }`
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <div className={`p-1.5 rounded-lg transition-all ${isActive ? 'bg-white/10' : ''}`}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <span>{label}</span>
+              </>
+            )}
+          </NavLink>
+        ))}
+        {/* More button that links to invoices/templates via settings */}
+        <NavLink
+          to="/invoices"
+          className={({ isActive }) =>
+            `flex-1 flex flex-col items-center gap-1 py-2.5 text-xs font-medium transition-all ${
+              isActive ? 'text-white' : 'text-slate-500'
+            }`
+          }
+        >
+          {({ isActive }) => (
+            <>
+              <div className={`p-1.5 rounded-lg transition-all ${isActive ? 'bg-white/10' : ''}`}>
+                <Receipt className="h-5 w-5" />
+              </div>
+              <span>Facturen</span>
+            </>
+          )}
+        </NavLink>
+      </nav>
     </div>
   )
 }

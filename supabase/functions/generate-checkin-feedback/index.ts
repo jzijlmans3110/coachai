@@ -52,11 +52,19 @@ ${checkIn.notes ? `- Notes: ${checkIn.notes}` : ''}
 
 Be encouraging, specific to their data, and give one actionable tip for next week.`
 
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!anthropicKey) {
+      return new Response(JSON.stringify({ error: 'ANTHROPIC_API_KEY not configured' }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
+        'x-api-key': anthropicKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
@@ -79,10 +87,13 @@ Be encouraging, specific to their data, and give one actionable tip for next wee
     const feedback = claudeData.content?.[0]?.text ?? ''
 
     // Update check-in with AI feedback
-    await supabase
+    const { error: updateError } = await supabase
       .from('check_ins')
       .update({ ai_feedback: feedback })
       .eq('id', check_in_id)
+    if (updateError) {
+      console.error('Failed to save AI feedback:', updateError)
+    }
 
     return new Response(JSON.stringify({ feedback }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -113,7 +113,7 @@ export default function ProgramView({ program: initialProgram, onSaved }: Props)
                         <input value={ex.rest} onChange={e => updateExercise(activeWeek, di, ei, 'rest', e.target.value)} className={inputCls + ' w-14 text-slate-600'} />
                       </td>
                       <td className="px-3 py-2 last:pr-4">
-                        <input value={ex.notes} onChange={e => updateExercise(activeWeek, di, ei, 'notes', e.target.value)} className={inputCls + ' text-slate-400'} placeholder="—" />
+                        <input value={ex.notes ?? ''} onChange={e => updateExercise(activeWeek, di, ei, 'notes', e.target.value)} className={inputCls + ' text-slate-400'} placeholder="—" />
                       </td>
                     </tr>
                   ))}

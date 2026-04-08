@@ -198,6 +198,7 @@ export default function ClientDetail() {
     if (checkIns.length === 0) return null
     const weeksWithCheckin = new Set(checkIns.map(c => c.week_number)).size
     const maxWeek = Math.max(...checkIns.map(c => c.week_number))
+    if (maxWeek === 0) return 100
     return Math.round((weeksWithCheckin / maxWeek) * 100)
   })()
 
@@ -246,6 +247,7 @@ export default function ClientDetail() {
     if (!client) return
     setAdjusting(program.id); setAdjustedProgram(null)
     const { data: { user } } = await supabase.auth.getUser()
+    if (!user) { setAdjusting(null); return }
     const { data, error } = await supabase.functions.invoke('adjust-program', {
       body: { program_id: program.id, client_id: client.id, coach_id: user?.id },
     })

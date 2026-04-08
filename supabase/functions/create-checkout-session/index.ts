@@ -46,7 +46,7 @@ Deno.serve(async (req) => {
       .single()
 
     const mollieKey = Deno.env.get('MOLLIE_API_KEY')!
-    const origin = req.headers.get('origin') ?? 'https://coachai-seven.vercel.app'
+    const origin = req.headers.get('origin') ?? Deno.env.get('SITE_URL') ?? 'https://coachai-seven.vercel.app'
 
     // Get or create Mollie customer
     let mollieCustomerId = coach?.stripe_customer_id // reusing field for Mollie customer ID
