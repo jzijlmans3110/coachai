@@ -45,12 +45,24 @@ Deno.serve(async (req) => {
     }
 
     const weeks = 4
+    const bmi = client.weight_kg && client.height_cm
+      ? (client.weight_kg / Math.pow(client.height_cm / 100, 2)).toFixed(1)
+      : null
+
     const userMessage = `Create a ${weeks}-week program for:
 Goal: ${client.goal}
 Level: ${client.level}
 Days/week: ${client.days_per_week}
 Equipment: ${client.equipment?.join(', ') || 'bodyweight'}
-Injuries: ${client.injuries || 'none'}`
+${client.gender ? `Gender: ${client.gender}` : ''}
+${client.age ? `Age: ${client.age}` : ''}
+${client.weight_kg ? `Weight: ${client.weight_kg} kg` : ''}
+${client.height_cm ? `Height: ${client.height_cm} cm` : ''}
+${bmi ? `BMI: ${bmi}` : ''}
+${client.experience_years != null ? `Training experience: ${client.experience_years} years` : ''}
+${client.training_time ? `Preferred training time: ${client.training_time}` : ''}
+Injuries/limitations: ${client.injuries || 'none'}
+${client.medical_notes ? `Medical notes: ${client.medical_notes}` : ''}`
 
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',

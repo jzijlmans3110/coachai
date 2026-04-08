@@ -15,6 +15,14 @@ export interface Client {
   days_per_week: number
   injuries: string | null
   equipment: string[]
+  age: number | null
+  weight_kg: number | null
+  height_cm: number | null
+  gender: 'man' | 'vrouw' | 'anders' | null
+  experience_years: number | null
+  training_time: 'ochtend' | 'middag' | 'avond' | 'wisselend' | null
+  medical_notes: string | null
+  phone: string | null
   created_at: string
 }
 
