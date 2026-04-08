@@ -216,3 +216,35 @@ export interface Broadcast {
   message: string
   created_at: string
 }
+
+export interface Habit {
+  id: string
+  coach_id: string
+  client_id: string
+  title: string
+  created_at: string
+}
+
+export interface HabitLog {
+  id: string
+  habit_id: string
+  client_id: string
+  logged_date: string
+  created_at: string
+}
+
+export interface SessionBrief {
+  client_name: string
+  generated_at: string
+  snapshot: {
+    avg_energy: string
+    energy_trend: string
+    consistency: string
+    last_checkin_days: number | null
+    weight_trend: string | null
+  }
+  celebrate: string[]
+  address: string[]
+  talking_points: string[]
+  program_suggestion: string | null
+}

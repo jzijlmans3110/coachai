@@ -5,13 +5,13 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, Copy, Check,
   Ruler, Utensils, FileText, Target, MessageSquare, Plus,
   Trophy, Send, Printer, BookmarkPlus, Trash2, CheckCircle2,
-  Camera, Dumbbell, ExternalLink,
+  Camera, Dumbbell, ExternalLink, Flame, Sparkles, X,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Client, Program, CheckIn, BodyMeasurement, SessionNote, Milestone, MealPlan } from '../lib/types'
+import type { Client, Program, CheckIn, BodyMeasurement, SessionNote, Milestone, MealPlan, Habit, HabitLog, SessionBrief } from '../lib/types'
 import ProgramView from '../components/ProgramView'
 
-type Tab = 'overzicht' | 'metingen' | 'foto' | 'voeding' | 'notities' | 'doelen' | 'chat'
+type Tab = 'overzicht' | 'metingen' | 'foto' | 'voeding' | 'notities' | 'doelen' | 'chat' | 'gewoontes' | 'brief'
 
 interface ProgressPhoto {
   id: string
@@ -150,6 +150,17 @@ export default function ClientDetail() {
   const [showBenchmarkForm, setShowBenchmarkForm] = useState(false)
   const [benchmarkForm, setBenchmarkForm] = useState({ exercise: '', value: '', unit: 'kg', recorded_at: new Date().toISOString().split('T')[0], notes: '' })
 
+  // Habits
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([])
+  const [newHabitTitle, setNewHabitTitle] = useState('')
+  const [addingHabit, setAddingHabit] = useState(false)
+
+  // Session Brief
+  const [brief, setBrief] = useState<SessionBrief | null>(null)
+  const [loadingBrief, setLoadingBrief] = useState(false)
+  const [showBrief, setShowBrief] = useState(false)
+
   const loadData = useCallback(async () => {
     if (!id) return
     const { data: { user } } = await supabase.auth.getUser()
@@ -187,6 +198,16 @@ export default function ClientDetail() {
     setPhotos((photosData as ProgressPhoto[]) ?? [])
     setBenchmarks((benchmarksData as Benchmark[]) ?? [])
     setPortalToken(clientData?.portal_token ?? '')
+
+    // Load habits + logs (last 35 days)
+    const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 86400000).toISOString().slice(0, 10)
+    const [{ data: habitsData }, { data: logsData }] = await Promise.all([
+      supabase.from('habits').select('*').eq('client_id', id).order('created_at', { ascending: true }),
+      supabase.from('habit_logs').select('*').eq('client_id', id).gte('logged_date', thirtyFiveDaysAgo),
+    ])
+    setHabits((habitsData as Habit[]) ?? [])
+    setHabitLogs((logsData as HabitLog[]) ?? [])
+
     setLoading(false)
   }, [id])
 
@@ -378,6 +399,50 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
   )
   if (!client) return <div className="p-8 text-slate-400">Client niet gevonden.</div>
 
+  // Habit handlers
+  const handleAddHabit = async () => {
+    if (!id || !newHabitTitle.trim() || !coachId) return
+    setAddingHabit(true)
+    const { data } = await supabase.from('habits').insert({
+      coach_id: coachId, client_id: id, title: newHabitTitle.trim(),
+    }).select().single()
+    if (data) setHabits(prev => [...prev, data as Habit])
+    setNewHabitTitle('')
+    setAddingHabit(false)
+  }
+
+  const handleDeleteHabit = async (habitId: string) => {
+    await supabase.from('habit_logs').delete().eq('habit_id', habitId)
+    await supabase.from('habits').delete().eq('id', habitId)
+    setHabits(prev => prev.filter(h => h.id !== habitId))
+    setHabitLogs(prev => prev.filter(l => l.habit_id !== habitId))
+  }
+
+  // Session Brief handler
+  const handleGenerateBrief = async () => {
+    if (!id) return
+    setLoadingBrief(true)
+    setShowBrief(true)
+    const { data, error: fnError } = await supabase.functions.invoke('generate-session-brief', {
+      body: { client_id: id },
+    })
+    if (!fnError && data && !data.error) {
+      setBrief(data as SessionBrief)
+    }
+    setLoadingBrief(false)
+  }
+
+  // Heatmap helper: last 35 days grid
+  const buildHeatmap = (habitId: string) => {
+    const days: { date: string; logged: boolean }[] = []
+    for (let i = 34; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 86400000)
+      const dateStr = d.toISOString().slice(0, 10)
+      days.push({ date: dateStr, logged: habitLogs.some(l => l.habit_id === habitId && l.logged_date === dateStr) })
+    }
+    return days
+  }
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'overzicht', label: 'Overzicht', icon: <Zap className="h-3.5 w-3.5" /> },
     { key: 'metingen', label: 'Metingen', icon: <Ruler className="h-3.5 w-3.5" /> },
@@ -385,6 +450,8 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
     { key: 'voeding', label: 'Voeding', icon: <Utensils className="h-3.5 w-3.5" /> },
     { key: 'notities', label: 'Notities', icon: <FileText className="h-3.5 w-3.5" /> },
     { key: 'doelen', label: 'Doelen', icon: <Target className="h-3.5 w-3.5" /> },
+    { key: 'gewoontes', label: 'Gewoontes', icon: <Flame className="h-3.5 w-3.5" /> },
+    { key: 'brief', label: 'Session Brief', icon: <Sparkles className="h-3.5 w-3.5" /> },
     { key: 'chat', label: 'AI Chat', icon: <MessageSquare className="h-3.5 w-3.5" /> },
   ]
 
@@ -1283,6 +1350,238 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
               <Send className="h-4 w-4" />
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Gewoontes tab */}
+      {tab === 'gewoontes' && (
+        <div className="space-y-4">
+          {/* Add habit */}
+          <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+            <h3 className="font-bold text-slate-900 text-sm mb-3">Gewoonte toevoegen</h3>
+            <div className="flex gap-2">
+              <input
+                value={newHabitTitle}
+                onChange={e => setNewHabitTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleAddHabit()}
+                placeholder="bijv. 10.000 stappen, 2L water, 8u slaap..."
+                className="flex-1 border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
+              />
+              <button
+                onClick={handleAddHabit}
+                disabled={addingHabit || !newHabitTitle.trim()}
+                className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-40 flex items-center gap-1.5"
+              >
+                <Plus className="h-4 w-4" />
+                Toevoegen
+              </button>
+            </div>
+          </div>
+
+          {habits.length === 0 ? (
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-10 text-center">
+              <Flame className="h-8 w-8 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-500 font-medium text-sm">Nog geen gewoontes</p>
+              <p className="text-slate-400 text-xs mt-1">Voeg dagelijkse gewoontes toe die je client bijhoudt in het portaal.</p>
+            </div>
+          ) : (
+            habits.map(habit => {
+              const heatmap = buildHeatmap(habit.id)
+              const loggedCount = heatmap.filter(d => d.logged).length
+              const streakDays = (() => {
+                let streak = 0
+                for (let i = heatmap.length - 1; i >= 0; i--) {
+                  if (heatmap[i].logged) streak++
+                  else break
+                }
+                return streak
+              })()
+              // Group into weeks (5 rows of 7)
+              const weeks: typeof heatmap[] = []
+              for (let w = 0; w < 5; w++) weeks.push(heatmap.slice(w * 7, w * 7 + 7))
+
+              return (
+                <div key={habit.id} className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Flame className={`h-4 w-4 ${streakDays > 0 ? 'text-orange-500' : 'text-slate-300'}`} />
+                      <span className="font-bold text-slate-900 text-sm">{habit.title}</span>
+                      {streakDays > 1 && (
+                        <span className="text-xs font-semibold bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full">
+                          🔥 {streakDays} daagse streak
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-slate-400">{loggedCount}/35 dagen</span>
+                      <button
+                        onClick={() => handleDeleteHabit(habit.id)}
+                        className="text-slate-300 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                  {/* Heatmap grid */}
+                  <div className="space-y-1">
+                    {weeks.map((week, wi) => (
+                      <div key={wi} className="flex gap-1">
+                        {week.map((day) => (
+                          <div
+                            key={day.date}
+                            title={day.date}
+                            className={`flex-1 h-6 rounded-md transition-colors ${
+                              day.logged
+                                ? 'bg-brand-500'
+                                : 'bg-slate-100'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-slate-400">35 dagen geleden</span>
+                    <span className="text-xs text-slate-400">Vandaag</span>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+
+      {/* Session Brief tab */}
+      {tab === 'brief' && (
+        <div>
+          {!showBrief ? (
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-10 text-center">
+              <div className="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="h-7 w-7 text-brand-600" />
+              </div>
+              <h3 className="font-bold text-slate-900 mb-2">AI Session Brief</h3>
+              <p className="text-sm text-slate-400 mb-6 max-w-sm mx-auto">
+                Genereer een persoonlijke briefing voor je gesprek met {client.full_name}. AI analyseert alle check-ins, trends en doelen.
+              </p>
+              <button
+                onClick={handleGenerateBrief}
+                className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-6 py-3 rounded-xl transition-colors"
+              >
+                <Sparkles className="h-4 w-4" />
+                Genereer Session Brief
+              </button>
+            </div>
+          ) : loadingBrief ? (
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-10 text-center">
+              <Loader2 className="h-8 w-8 text-brand-500 animate-spin mx-auto mb-3" />
+              <p className="text-sm text-slate-400">AI analyseert {client.full_name}...</p>
+            </div>
+          ) : brief ? (
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="bg-brand-600 rounded-2xl p-5 text-white">
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-brand-200" />
+                    <span className="text-xs font-semibold text-brand-200 uppercase tracking-wide">Session Brief</span>
+                  </div>
+                  <button onClick={() => { setShowBrief(false); setBrief(null) }} className="text-brand-300 hover:text-white transition-colors">
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <h2 className="text-lg font-bold">{brief.client_name}</h2>
+                <p className="text-xs text-brand-300 mt-0.5">{new Date(brief.generated_at).toLocaleString('nl-NL', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+              </div>
+
+              {/* Snapshot */}
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+                <h3 className="font-bold text-slate-900 text-sm mb-3">Snapshot</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { label: 'Gem. energie', value: brief.snapshot.avg_energy },
+                    { label: 'Energietrend', value: brief.snapshot.energy_trend },
+                    { label: 'Consistentie', value: brief.snapshot.consistency },
+                    { label: 'Laatste check-in', value: brief.snapshot.last_checkin_days != null ? `${brief.snapshot.last_checkin_days} dagen geleden` : 'Onbekend' },
+                    ...(brief.snapshot.weight_trend ? [{ label: 'Gewichtstrend', value: brief.snapshot.weight_trend }] : []),
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-slate-50 rounded-xl px-3 py-2.5">
+                      <p className="text-xs text-slate-400 mb-0.5">{label}</p>
+                      <p className="text-sm font-bold text-slate-900 capitalize">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Celebrate */}
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-5">
+                <h3 className="font-bold text-emerald-800 text-sm mb-2 flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-emerald-600" /> Vier dit
+                </h3>
+                <ul className="space-y-1.5">
+                  {brief.celebrate.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-emerald-700">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Address */}
+              {brief.address.length > 0 && (
+                <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5">
+                  <h3 className="font-bold text-amber-800 text-sm mb-2 flex items-center gap-2">
+                    <Brain className="h-4 w-4 text-amber-600" /> Bespreek dit
+                  </h3>
+                  <ul className="space-y-1.5">
+                    {brief.address.map((item, i) => (
+                      <li key={i} className="text-sm text-amber-700">• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Talking points */}
+              <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+                <h3 className="font-bold text-slate-900 text-sm mb-3 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-brand-500" /> Gesprekspunten
+                </h3>
+                <ol className="space-y-2">
+                  {brief.talking_points.map((point, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-0.5">{i + 1}</span>
+                      <span className="text-sm text-slate-700">{point}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+
+              {/* Program suggestion */}
+              {brief.program_suggestion && (
+                <div className="bg-brand-50 border border-brand-100 rounded-2xl p-5">
+                  <h3 className="font-bold text-brand-800 text-sm mb-2 flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-brand-600" /> Programma suggestie
+                  </h3>
+                  <p className="text-sm text-brand-700">{brief.program_suggestion}</p>
+                </div>
+              )}
+
+              {/* Regenerate */}
+              <button
+                onClick={handleGenerateBrief}
+                disabled={loadingBrief}
+                className="w-full flex items-center justify-center gap-2 border border-slate-200 text-slate-600 text-sm font-semibold py-3 rounded-xl hover:bg-slate-50 transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Opnieuw genereren
+              </button>
+            </div>
+          ) : (
+            <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-8 text-center">
+              <p className="text-rose-500 text-sm">Genereren mislukt. Probeer opnieuw.</p>
+              <button onClick={() => setShowBrief(false)} className="mt-3 text-xs text-slate-400 hover:text-slate-600">Terug</button>
+            </div>
+          )}
         </div>
       )}
     </div>

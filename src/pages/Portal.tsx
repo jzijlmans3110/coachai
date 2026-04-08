@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone } from 'lucide-react'
+import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone, Flame } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Program, CheckIn, MealPlan, Milestone, Broadcast, Challenge, ChallengeEntry } from '../lib/types'
+import type { Program, CheckIn, MealPlan, Milestone, Broadcast, Challenge, ChallengeEntry, Habit, HabitLog } from '../lib/types'
 
 interface PortalClient {
   id: string
@@ -15,7 +15,7 @@ interface PortalClient {
   training_days: string[]
 }
 
-type Tab = 'programma' | 'checkins' | 'voeding' | 'doelen' | 'uitdagingen'
+type Tab = 'programma' | 'checkins' | 'voeding' | 'doelen' | 'uitdagingen' | 'gewoontes'
 
 export default function Portal() {
   const { token } = useParams<{ token: string }>()
@@ -29,6 +29,9 @@ export default function Portal() {
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [challengeEntries, setChallengeEntries] = useState<ChallengeEntry[]>([])
+  const [habits, setHabits] = useState<Habit[]>([])
+  const [habitLogs, setHabitLogs] = useState<HabitLog[]>([])
+  const [loggingHabit, setLoggingHabit] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>('programma')
   const [activeWeek, setActiveWeek] = useState(0)
   const [entryValues, setEntryValues] = useState<Record<string, string>>({})
@@ -50,6 +53,8 @@ export default function Portal() {
       setBroadcasts(data.broadcasts ?? [])
       setChallenges(data.challenges ?? [])
       setChallengeEntries(data.challengeEntries ?? [])
+      setHabits(data.habits ?? [])
+      setHabitLogs(data.habitLogs ?? [])
       setLoading(false)
     }
     load()
@@ -92,12 +97,29 @@ export default function Portal() {
     return Math.round((unique / max) * 100)
   })()
 
+  const today = new Date().toISOString().slice(0, 10)
+
+  const handleLogHabit = async (habitId: string) => {
+    if (!client || loggingHabit === habitId) return
+    const alreadyLogged = habitLogs.some(l => l.habit_id === habitId && l.logged_date === today)
+    setLoggingHabit(habitId)
+    if (alreadyLogged) {
+      await supabase.from('habit_logs').delete().eq('habit_id', habitId).eq('client_id', client.id).eq('logged_date', today)
+      setHabitLogs(prev => prev.filter(l => !(l.habit_id === habitId && l.logged_date === today)))
+    } else {
+      const { data } = await supabase.from('habit_logs').insert({ habit_id: habitId, client_id: client.id, logged_date: today }).select().single()
+      if (data) setHabitLogs(prev => [...prev, data as HabitLog])
+    }
+    setLoggingHabit(null)
+  }
+
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'programma', label: 'Programma', icon: <Calendar className="h-3.5 w-3.5" /> },
     { key: 'checkins', label: 'Check-ins', icon: <ClipboardList className="h-3.5 w-3.5" /> },
     { key: 'voeding', label: 'Voeding', icon: <Utensils className="h-3.5 w-3.5" /> },
     { key: 'doelen', label: 'Doelen', icon: <Target className="h-3.5 w-3.5" /> },
     { key: 'uitdagingen', label: 'Challenges', icon: <Trophy className="h-3.5 w-3.5" /> },
+    ...(habits.length > 0 ? [{ key: 'gewoontes' as Tab, label: 'Gewoontes', icon: <Flame className="h-3.5 w-3.5" /> }] : []),
   ]
 
   if (loading) return (
@@ -395,6 +417,60 @@ export default function Portal() {
                     </div>
                   )}
                 </div>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Gewoontes */}
+        {tab === 'gewoontes' && (
+          <div className="space-y-3">
+            <p className="text-xs text-slate-400 text-center">Vink vandaag je gewoontes af</p>
+            {habits.map(habit => {
+              const doneToday = habitLogs.some(l => l.habit_id === habit.id && l.logged_date === today)
+              const streak = (() => {
+                let s = 0
+                for (let i = 0; i < 35; i++) {
+                  const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10)
+                  if (habitLogs.some(l => l.habit_id === habit.id && l.logged_date === d)) s++
+                  else break
+                }
+                return s
+              })()
+              const totalLogged = habitLogs.filter(l => l.habit_id === habit.id).length
+
+              return (
+                <button
+                  key={habit.id}
+                  onClick={() => handleLogHabit(habit.id)}
+                  disabled={loggingHabit === habit.id}
+                  className={`w-full flex items-center gap-4 p-4 rounded-2xl border transition-all ${
+                    doneToday
+                      ? 'bg-emerald-500/10 border-emerald-500/30'
+                      : 'bg-white/5 border-white/10 hover:border-white/20'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+                    doneToday ? 'bg-emerald-500' : 'bg-white/10'
+                  }`}>
+                    {doneToday
+                      ? <span className="text-white text-sm">✓</span>
+                      : <Flame className="h-4 w-4 text-slate-400" />}
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className={`text-sm font-semibold ${doneToday ? 'text-emerald-300' : 'text-white'}`}>
+                      {habit.title}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      {streak > 1 ? `🔥 ${streak} daagse streak · ` : ''}{totalLogged} keer gedaan
+                    </p>
+                  </div>
+                  <span className={`text-xs font-semibold px-2 py-1 rounded-lg ${
+                    doneToday ? 'text-emerald-300' : 'text-slate-500'
+                  }`}>
+                    {doneToday ? 'Gedaan!' : 'Tap om af te vinken'}
+                  </span>
+                </button>
               )
             })}
           </div>

@@ -34,7 +34,10 @@ Deno.serve(async (req) => {
     const { coach_id, ...client } = clientRow
     if (!coach_id) return json({ error: 'Client heeft geen gekoppelde coach' })
 
-    const [{ data: programs }, { data: checkIns }, { data: mealPlans }, { data: milestones }, { data: broadcasts }, { data: challenges }, { data: challengeEntries }] = await Promise.all([
+    // Last 35 days for habit logs (5 weeks heatmap)
+    const thirtyFiveDaysAgo = new Date(Date.now() - 35 * 86400000).toISOString().slice(0, 10)
+
+    const [{ data: programs }, { data: checkIns }, { data: mealPlans }, { data: milestones }, { data: broadcasts }, { data: challenges }, { data: challengeEntries }, { data: habits }, { data: habitLogs }] = await Promise.all([
       supabase.from('programs').select('*').eq('client_id', client.id).order('created_at', { ascending: false }).limit(3),
       supabase.from('check_ins').select('*').eq('client_id', client.id).order('submitted_at', { ascending: false }).limit(10),
       supabase.from('meal_plans').select('*').eq('client_id', client.id).order('created_at', { ascending: false }).limit(1),
@@ -42,9 +45,11 @@ Deno.serve(async (req) => {
       supabase.from('broadcasts').select('*').eq('coach_id', coach_id).order('created_at', { ascending: false }).limit(10),
       supabase.from('challenges').select('*').eq('coach_id', coach_id).eq('active', true).order('created_at', { ascending: false }),
       supabase.from('challenge_entries').select('*').eq('client_id', client.id),
+      supabase.from('habits').select('*').eq('client_id', client.id).order('created_at', { ascending: true }),
+      supabase.from('habit_logs').select('*').eq('client_id', client.id).gte('logged_date', thirtyFiveDaysAgo),
     ])
 
-    return json({ client, programs: programs ?? [], checkIns: checkIns ?? [], mealPlans: mealPlans ?? [], milestones: milestones ?? [], broadcasts: broadcasts ?? [], challenges: challenges ?? [], challengeEntries: challengeEntries ?? [] })
+    return json({ client, programs: programs ?? [], checkIns: checkIns ?? [], mealPlans: mealPlans ?? [], milestones: milestones ?? [], broadcasts: broadcasts ?? [], challenges: challenges ?? [], challengeEntries: challengeEntries ?? [], habits: habits ?? [], habitLogs: habitLogs ?? [] })
   } catch (err) {
     return json({ error: String(err) })
   }
