@@ -72,3 +72,69 @@ export interface CheckIn {
   ai_feedback: string | null
   submitted_at: string
 }
+
+export interface BodyMeasurement {
+  id: string
+  client_id: string
+  measured_at: string
+  weight_kg: number | null
+  chest_cm: number | null
+  waist_cm: number | null
+  hips_cm: number | null
+  bicep_cm: number | null
+  thigh_cm: number | null
+  notes: string | null
+  created_at: string
+}
+
+export interface SessionNote {
+  id: string
+  client_id: string
+  coach_id: string
+  content: string
+  session_date: string
+  created_at: string
+}
+
+export interface Milestone {
+  id: string
+  client_id: string
+  title: string
+  target_date: string | null
+  achieved_at: string | null
+  created_at: string
+}
+
+export interface MealItem {
+  name: string
+  time?: string
+  foods: string[]
+  calories: number
+  protein: number
+}
+
+export interface MealDay {
+  day: string
+  total_calories: number
+  total_protein: number
+  meals: MealItem[]
+}
+
+export interface MealPlanContent {
+  title: string
+  calories_target: number
+  protein_target: number
+  carbs_target?: number
+  fat_target?: number
+  days: MealDay[]
+}
+
+export interface MealPlan {
+  id: string
+  client_id: string
+  coach_id: string
+  title: string
+  content: MealPlanContent
+  ai_generated: boolean
+  created_at: string
+}
