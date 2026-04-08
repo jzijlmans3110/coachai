@@ -1,8 +1,69 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, Zap, ChevronRight, ClipboardList, Battery, Moon, AlertTriangle } from 'lucide-react'
+import { Users, Zap, ChevronRight, ClipboardList, Battery, Moon, AlertTriangle, TrendingDown } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, Program, CheckIn } from '../lib/types'
+
+interface ChurnRisk {
+  client: Client
+  score: number // 0-100, higher = more at risk
+  level: 'low' | 'medium' | 'high'
+  reasons: string[]
+  suggestion: string
+  daysSinceCheckIn: number | null
+}
+
+function computeChurnRisk(client: Client, checkIns: CheckIn[]): ChurnRisk {
+  const clientCheckIns = checkIns
+    .filter(c => c.client_id === client.id)
+    .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
+
+  const reasons: string[] = []
+  let score = 0
+
+  // Days since last check-in
+  let daysSinceCheckIn: number | null = null
+  if (clientCheckIns.length === 0) {
+    score += 40
+    reasons.push('Nog nooit ingecheckt')
+  } else {
+    daysSinceCheckIn = Math.floor((Date.now() - new Date(clientCheckIns[0].submitted_at).getTime()) / 86400000)
+    if (daysSinceCheckIn > 21) { score += 40; reasons.push(`${daysSinceCheckIn} dagen geen check-in`) }
+    else if (daysSinceCheckIn > 10) { score += 20; reasons.push(`${daysSinceCheckIn} dagen geen check-in`) }
+  }
+
+  // Energy trend (last 3)
+  if (clientCheckIns.length >= 3) {
+    const [e1, e2, e3] = clientCheckIns.slice(0, 3).map(c => c.energy)
+    if (e1 < e2 && e2 < e3) { score += 25; reasons.push('Dalende energietrend') }
+    else if (e1 < 5) { score += 15; reasons.push('Lage energie bij laatste check-in') }
+  } else if (clientCheckIns.length === 1 && clientCheckIns[0].energy < 5) {
+    score += 15
+    reasons.push('Lage energie bij laatste check-in')
+  }
+
+  // Few check-ins vs client age
+  const clientAgeDays = Math.floor((Date.now() - new Date(client.created_at).getTime()) / 86400000)
+  const expectedCheckIns = Math.floor(clientAgeDays / 7)
+  if (expectedCheckIns > 2 && clientCheckIns.length < expectedCheckIns * 0.4) {
+    score += 20
+    reasons.push('Weinig check-ins vergeleken met inschrijfduur')
+  }
+
+  // Status
+  if (client.status === 'inactief') { score += 15; reasons.push('Status: inactief') }
+
+  score = Math.min(score, 100)
+  const level = score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low'
+
+  const suggestions: Record<string, string> = {
+    high: 'Neem direct contact op — stuur een persoonlijk bericht of bel om te vragen hoe het gaat.',
+    medium: 'Stuur een motiverende check-in reminder en vraag actief naar voortgang.',
+    low: 'Client is betrokken — houd momentum vast met positieve feedback.',
+  }
+
+  return { client, score, level, reasons, suggestion: suggestions[level], daysSinceCheckIn }
+}
 
 export default function Dashboard() {
   const [clients, setClients] = useState<Client[]>([])
@@ -50,6 +111,13 @@ export default function Dashboard() {
     if (!clientCheckIns.length) return false
     return clientCheckIns[0].energy < 5
   })
+
+  // Churn risk engine
+  const churnRisks = clients
+    .map(c => computeChurnRisk(c, checkIns))
+    .filter(r => r.level !== 'low')
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 5)
 
   const levelBadge = (level: string) => ({
     beginner: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60',
@@ -222,6 +290,63 @@ export default function Dashboard() {
                 {client.full_name}
               </Link>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Churn Risk Engine */}
+      {churnRisks.length > 0 && (
+        <div className="mt-5 bg-white border border-slate-100 shadow-card rounded-2xl">
+          <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-50">
+            <TrendingDown className="h-4 w-4 text-amber-500" />
+            <h2 className="font-bold text-slate-900 text-sm">Churn Risico Radar</h2>
+            <span className="ml-auto text-xs text-slate-400 font-medium">AI-gedreven retentie</span>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {churnRisks.map(risk => {
+              const riskColor = risk.level === 'high'
+                ? { bar: 'bg-rose-500', badge: 'bg-rose-50 text-rose-700 ring-1 ring-rose-200/60', dot: 'bg-rose-400' }
+                : { bar: 'bg-amber-400', badge: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200/60', dot: 'bg-amber-400' }
+              return (
+                <div key={risk.client.id} className="px-5 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5">
+                      {risk.client.full_name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Link to={`/clients/${risk.client.id}`} className="text-sm font-bold text-slate-900 hover:text-brand-600 transition-colors">
+                          {risk.client.full_name}
+                        </Link>
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${riskColor.badge}`}>
+                          {risk.level === 'high' ? 'Hoog risico' : 'Matig risico'}
+                        </span>
+                      </div>
+                      {/* Risk bar */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${riskColor.bar}`} style={{ width: `${risk.score}%` }} />
+                        </div>
+                        <span className="text-xs text-slate-400 font-medium flex-shrink-0">{risk.score}%</span>
+                      </div>
+                      {/* Reasons */}
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {risk.reasons.map(r => (
+                          <span key={r} className="flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
+                            <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${riskColor.dot}`} />
+                            {r}
+                          </span>
+                        ))}
+                      </div>
+                      {/* AI suggestion */}
+                      <p className="text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl leading-relaxed">
+                        <span className="font-semibold text-brand-600">Advies: </span>{risk.suggestion}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

@@ -1,26 +1,52 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus, ChevronRight, Crown } from 'lucide-react'
+import { Plus, ChevronRight, Crown, Megaphone, Send, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Client, Coach } from '../lib/types'
+import type { Client, Coach, Broadcast } from '../lib/types'
 import AddClientModal from '../components/AddClientModal'
 
 export default function Clients() {
   const [clients, setClients] = useState<Client[]>([])
   const [coach, setCoach] = useState<Coach | null>(null)
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
+  const [broadcastTitle, setBroadcastTitle] = useState('')
+  const [broadcastMessage, setBroadcastMessage] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
 
   const loadData = async () => {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-    const [{ data: coachData }, { data: clientsData }] = await Promise.all([
+    const [{ data: coachData }, { data: clientsData }, { data: broadcastsData }] = await Promise.all([
       supabase.from('coaches').select('*').eq('id', user.id).single(),
       supabase.from('clients').select('*').eq('coach_id', user.id).order('created_at', { ascending: false }),
+      supabase.from('broadcasts').select('*').eq('coach_id', user.id).order('created_at', { ascending: false }).limit(5),
     ])
     setCoach(coachData)
     setClients(clientsData ?? [])
+    setBroadcasts(broadcastsData ?? [])
     setLoading(false)
+  }
+
+  const handleBroadcast = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!broadcastTitle.trim() || !broadcastMessage.trim()) return
+    setSending(true)
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+    await supabase.from('broadcasts').insert({
+      coach_id: user.id,
+      title: broadcastTitle.trim(),
+      message: broadcastMessage.trim(),
+    })
+    setBroadcastTitle('')
+    setBroadcastMessage('')
+    setSending(false)
+    setSent(true)
+    setTimeout(() => setSent(false), 3000)
+    loadData()
   }
 
   useEffect(() => { loadData() }, [])
@@ -127,6 +153,77 @@ export default function Clients() {
           </table>
         </div>
       )}
+
+      {/* Broadcast panel */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
+        {/* Send broadcast */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="bg-brand-50 rounded-xl p-2">
+              <Megaphone className="h-4 w-4 text-brand-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-900 text-sm">Broadcast bericht</h2>
+              <p className="text-xs text-slate-400">Stuur een bericht naar alle clients tegelijk</p>
+            </div>
+          </div>
+          <form onSubmit={handleBroadcast} className="space-y-3">
+            <input
+              value={broadcastTitle}
+              onChange={e => setBroadcastTitle(e.target.value)}
+              placeholder="Onderwerp bijv. 'Nieuwe trainingsweek!'"
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
+            />
+            <textarea
+              value={broadcastMessage}
+              onChange={e => setBroadcastMessage(e.target.value)}
+              placeholder="Typ je bericht voor alle clients..."
+              rows={4}
+              className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 resize-none"
+            />
+            <button
+              type="submit"
+              disabled={sending || !broadcastTitle.trim() || !broadcastMessage.trim()}
+              className={`w-full flex items-center justify-center gap-2 text-sm font-semibold py-2.5 rounded-xl transition-colors ${
+                sent
+                  ? 'bg-emerald-500 text-white'
+                  : 'bg-brand-600 hover:bg-brand-700 text-white disabled:opacity-40 disabled:cursor-not-allowed'
+              }`}
+            >
+              {sent ? (
+                <><Check className="h-4 w-4" /> Verstuurd naar {clients.length} clients!</>
+              ) : sending ? (
+                'Versturen...'
+              ) : (
+                <><Send className="h-4 w-4" /> Verstuur naar {clients.length} client{clients.length !== 1 ? 's' : ''}</>
+              )}
+            </button>
+          </form>
+        </div>
+
+        {/* Recent broadcasts */}
+        <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
+          <h2 className="font-bold text-slate-900 text-sm mb-4">Recente berichten</h2>
+          {broadcasts.length === 0 ? (
+            <div className="text-center py-8">
+              <Megaphone className="h-8 w-8 text-slate-200 mx-auto mb-2" />
+              <p className="text-slate-400 text-sm">Nog geen berichten verstuurd</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {broadcasts.map(b => (
+                <div key={b.id} className="bg-slate-50 rounded-xl p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <p className="text-xs font-bold text-slate-800">{b.title}</p>
+                    <p className="text-xs text-slate-400">{new Date(b.created_at).toLocaleDateString('nl-NL')}</p>
+                  </div>
+                  <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{b.message}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {showModal && (
         <AddClientModal

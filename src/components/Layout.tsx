@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, Settings, LogOut, Zap, Kanban, Calendar, BookTemplate, Receipt } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, LogOut, Zap, Kanban, Calendar, BookTemplate, Receipt, Trophy } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface LayoutProps {
@@ -13,6 +13,7 @@ const navItems = [
   { to: '/clients', icon: Users, label: 'Clients' },
   { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
   { to: '/calendar', icon: Calendar, label: 'Kalender' },
+  { to: '/challenges', icon: Trophy, label: 'Challenges' },
   { to: '/templates', icon: BookTemplate, label: 'Templates' },
   { to: '/invoices', icon: Receipt, label: 'Facturen' },
   { to: '/settings', icon: Settings, label: 'Instellingen' },

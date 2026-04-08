@@ -12,6 +12,7 @@ import Pipeline from './pages/Pipeline'
 import Calendar from './pages/Calendar'
 import Templates from './pages/Templates'
 import Invoices from './pages/Invoices'
+import Challenges from './pages/Challenges'
 import Intake from './pages/Intake'
 import Portal from './pages/Portal'
 import Layout from './components/Layout'
@@ -63,6 +64,7 @@ export default function App() {
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/templates" element={<Templates />} />
                   <Route path="/invoices" element={<Invoices />} />
+                  <Route path="/challenges" element={<Challenges />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

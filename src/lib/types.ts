@@ -187,3 +187,32 @@ export interface MealPlan {
   ai_generated: boolean
   created_at: string
 }
+
+export interface Challenge {
+  id: string
+  coach_id: string
+  title: string
+  description: string | null
+  metric: string
+  target: number
+  start_date: string
+  end_date: string
+  active: boolean
+  created_at: string
+}
+
+export interface ChallengeEntry {
+  id: string
+  challenge_id: string
+  client_id: string
+  value: number
+  updated_at: string
+}
+
+export interface Broadcast {
+  id: string
+  coach_id: string
+  title: string
+  message: string
+  created_at: string
+}

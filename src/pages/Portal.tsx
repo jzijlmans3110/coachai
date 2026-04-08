@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar } from 'lucide-react'
+import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone } from 'lucide-react'
 import { supabase } from '../lib/supabase'
-import type { Program, CheckIn, MealPlan, Milestone } from '../lib/types'
+import type { Program, CheckIn, MealPlan, Milestone, Broadcast, Challenge, ChallengeEntry } from '../lib/types'
 
 interface PortalClient {
   id: string
@@ -15,7 +15,7 @@ interface PortalClient {
   training_days: string[]
 }
 
-type Tab = 'programma' | 'checkins' | 'voeding' | 'doelen'
+type Tab = 'programma' | 'checkins' | 'voeding' | 'doelen' | 'uitdagingen'
 
 export default function Portal() {
   const { token } = useParams<{ token: string }>()
@@ -26,8 +26,13 @@ export default function Portal() {
   const [checkIns, setCheckIns] = useState<CheckIn[]>([])
   const [mealPlans, setMealPlans] = useState<MealPlan[]>([])
   const [milestones, setMilestones] = useState<Milestone[]>([])
+  const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
+  const [challenges, setChallenges] = useState<Challenge[]>([])
+  const [challengeEntries, setChallengeEntries] = useState<ChallengeEntry[]>([])
   const [tab, setTab] = useState<Tab>('programma')
   const [activeWeek, setActiveWeek] = useState(0)
+  const [entryValues, setEntryValues] = useState<Record<string, string>>({})
+  const [savingEntry, setSavingEntry] = useState<string | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -40,10 +45,29 @@ export default function Portal() {
       setCheckIns(data.checkIns ?? [])
       setMealPlans(data.mealPlans ?? [])
       setMilestones(data.milestones ?? [])
+      setBroadcasts(data.broadcasts ?? [])
+      setChallenges(data.challenges ?? [])
+      setChallengeEntries(data.challengeEntries ?? [])
       setLoading(false)
     }
     load()
   }, [token])
+
+  const handleSubmitEntry = async (challengeId: string) => {
+    const val = parseFloat(entryValues[challengeId] ?? '')
+    if (isNaN(val) || !client) return
+    setSavingEntry(challengeId)
+    const existing = challengeEntries.find(e => e.challenge_id === challengeId && e.client_id === client.id)
+    if (existing) {
+      await supabase.from('challenge_entries').update({ value: val, updated_at: new Date().toISOString() }).eq('id', existing.id)
+      setChallengeEntries(prev => prev.map(e => e.id === existing.id ? { ...e, value: val } : e))
+    } else {
+      const { data } = await supabase.from('challenge_entries').insert({ challenge_id: challengeId, client_id: client.id, value: val }).select().single()
+      if (data) setChallengeEntries(prev => [...prev, data])
+    }
+    setEntryValues(prev => ({ ...prev, [challengeId]: '' }))
+    setSavingEntry(null)
+  }
 
   const latestProgram = programs[0]
   const weeks = latestProgram?.content?.weeks ?? []
@@ -64,6 +88,7 @@ export default function Portal() {
     { key: 'checkins', label: 'Check-ins', icon: <ClipboardList className="h-3.5 w-3.5" /> },
     { key: 'voeding', label: 'Voeding', icon: <Utensils className="h-3.5 w-3.5" /> },
     { key: 'doelen', label: 'Doelen', icon: <Target className="h-3.5 w-3.5" /> },
+    { key: 'uitdagingen', label: 'Challenges', icon: <Trophy className="h-3.5 w-3.5" /> },
   ]
 
   if (loading) return (
@@ -100,6 +125,19 @@ export default function Portal() {
       </div>
 
       <div className="max-w-2xl mx-auto px-6 py-8">
+        {/* Broadcasts banner */}
+        {broadcasts.length > 0 && (
+          <div className="mb-5 bg-brand-600/10 border border-brand-500/20 rounded-2xl p-4">
+            <div className="flex items-center gap-2 mb-2">
+              <Megaphone className="h-4 w-4 text-brand-400" />
+              <p className="text-xs font-bold text-brand-300 uppercase tracking-wide">Bericht van je trainer</p>
+            </div>
+            <p className="text-sm font-semibold text-white">{broadcasts[0].title}</p>
+            <p className="text-xs text-slate-400 mt-1 leading-relaxed">{broadcasts[0].message}</p>
+            <p className="text-xs text-slate-500 mt-2">{new Date(broadcasts[0].created_at).toLocaleDateString('nl-NL')}</p>
+          </div>
+        )}
+
         {/* Profile card */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-5 mb-6">
           <div className="flex items-center gap-4 mb-4">
@@ -127,10 +165,10 @@ export default function Portal() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-5 bg-white/5 p-1 rounded-2xl">
+        <div className="flex gap-1 mb-5 bg-white/5 p-1 rounded-2xl overflow-x-auto">
           {tabs.map(t => (
             <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl transition-all ${
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
                 tab === t.key ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-300'
               }`}>
               {t.icon}{t.label}
@@ -151,7 +189,6 @@ export default function Portal() {
                   <h2 className="font-bold text-slate-900">{latestProgram.title}</h2>
                   <p className="text-xs text-slate-400 mt-0.5">{latestProgram.weeks} weken · {new Date(latestProgram.created_at).toLocaleDateString('nl-NL')}</p>
                 </div>
-                {/* Week tabs */}
                 <div className="flex border-b border-slate-50 px-5 gap-1 overflow-x-auto">
                   {weeks.map((w, idx) => (
                     <button key={idx} onClick={() => setActiveWeek(idx)}
@@ -288,6 +325,65 @@ export default function Portal() {
                 </div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Uitdagingen */}
+        {tab === 'uitdagingen' && (
+          <div className="space-y-4">
+            {challenges.length === 0 ? (
+              <div className="bg-white/5 border border-white/10 rounded-2xl px-6 py-10 text-center">
+                <Trophy className="h-8 w-8 text-slate-600 mx-auto mb-3" />
+                <p className="text-slate-400 text-sm">Je trainer heeft nog geen actieve uitdagingen.</p>
+              </div>
+            ) : challenges.map(ch => {
+              const myEntry = challengeEntries.find(e => e.challenge_id === ch.id && e.client_id === client.id)
+              const pct = myEntry ? Math.min((myEntry.value / ch.target) * 100, 100) : 0
+              const days = Math.ceil((new Date(ch.end_date).getTime() - Date.now()) / 86400000)
+              return (
+                <div key={ch.id} className="bg-white/5 border border-white/10 rounded-2xl p-5">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div>
+                      <h3 className="font-bold text-white text-sm">{ch.title}</h3>
+                      {ch.description && <p className="text-xs text-slate-400 mt-0.5">{ch.description}</p>}
+                    </div>
+                    <span className="text-xs text-slate-400 whitespace-nowrap flex-shrink-0">
+                      {days > 0 ? `${days}d over` : 'Afgelopen'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs text-slate-400 mb-1.5">
+                    <span>Doel: {ch.target} {ch.metric}</span>
+                    <span className="font-semibold text-white">{myEntry?.value ?? 0} / {ch.target} {ch.metric}</span>
+                  </div>
+                  <div className="h-2 bg-white/10 rounded-full overflow-hidden mb-4">
+                    <div
+                      className="h-full bg-brand-500 rounded-full transition-all"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {days > 0 && (
+                    <div className="flex gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={entryValues[ch.id] ?? ''}
+                        onChange={e => setEntryValues(prev => ({ ...prev, [ch.id]: e.target.value }))}
+                        placeholder={`Voer ${ch.metric} in`}
+                        className="flex-1 bg-white/10 border border-white/10 rounded-xl px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+                      />
+                      <button
+                        onClick={() => handleSubmitEntry(ch.id)}
+                        disabled={savingEntry === ch.id || !entryValues[ch.id]}
+                        className="bg-brand-600 hover:bg-brand-700 text-white text-xs font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-40"
+                      >
+                        {savingEntry === ch.id ? '...' : 'Opslaan'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         )}
       </div>

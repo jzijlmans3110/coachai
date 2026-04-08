@@ -23,22 +23,27 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     )
 
-    const { data: client } = await supabase
+    const { data: clientRow } = await supabase
       .from('clients')
-      .select('id, full_name, goal, level, days_per_week, equipment, injuries, age, weight_kg, height_cm, gender, experience_years, training_days')
+      .select('id, coach_id, full_name, goal, level, days_per_week, equipment, injuries, age, weight_kg, height_cm, gender, experience_years, training_days')
       .eq('portal_token', portal_token)
       .single()
 
-    if (!client) return json({ error: 'Ongeldig portaal token' })
+    if (!clientRow) return json({ error: 'Ongeldig portaal token' })
 
-    const [{ data: programs }, { data: checkIns }, { data: mealPlans }, { data: milestones }] = await Promise.all([
+    const { coach_id, ...client } = clientRow
+
+    const [{ data: programs }, { data: checkIns }, { data: mealPlans }, { data: milestones }, { data: broadcasts }, { data: challenges }, { data: challengeEntries }] = await Promise.all([
       supabase.from('programs').select('*').eq('client_id', client.id).order('created_at', { ascending: false }).limit(3),
       supabase.from('check_ins').select('*').eq('client_id', client.id).order('submitted_at', { ascending: false }).limit(10),
       supabase.from('meal_plans').select('*').eq('client_id', client.id).order('created_at', { ascending: false }).limit(1),
       supabase.from('milestones').select('*').eq('client_id', client.id).order('created_at', { ascending: false }),
+      supabase.from('broadcasts').select('*').eq('coach_id', coach_id).order('created_at', { ascending: false }).limit(10),
+      supabase.from('challenges').select('*').eq('coach_id', coach_id).eq('active', true).order('created_at', { ascending: false }),
+      supabase.from('challenge_entries').select('*').eq('client_id', client.id),
     ])
 
-    return json({ client, programs: programs ?? [], checkIns: checkIns ?? [], mealPlans: mealPlans ?? [], milestones: milestones ?? [] })
+    return json({ client, programs: programs ?? [], checkIns: checkIns ?? [], mealPlans: mealPlans ?? [], milestones: milestones ?? [], broadcasts: broadcasts ?? [], challenges: challenges ?? [], challengeEntries: challengeEntries ?? [] })
   } catch (err) {
     return json({ error: String(err) })
   }
