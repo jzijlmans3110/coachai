@@ -5,11 +5,12 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, Copy, Check,
   Ruler, Utensils, FileText, Target, MessageSquare, Plus,
   Trophy, Send, Printer, BookmarkPlus, Trash2, CheckCircle2,
-  Camera, Dumbbell, ExternalLink, Flame, Sparkles, X, Clock,
+  Camera, Dumbbell, ExternalLink, Flame, Sparkles, X, Clock, Video,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, Program, CheckIn, BodyMeasurement, SessionNote, Milestone, MealPlan, Habit, HabitLog, SessionBrief } from '../lib/types'
 import ProgramView from '../components/ProgramView'
+import VideoCallModal from '../components/VideoCallModal'
 
 type Tab = 'overzicht' | 'metingen' | 'foto' | 'voeding' | 'notities' | 'doelen' | 'chat' | 'gewoontes' | 'brief' | 'tijdlijn'
 
@@ -168,6 +169,9 @@ export default function ClientDetail() {
   const [dismissedAutoAdjust, setDismissedAutoAdjust] = useState(false)
   const [autoAdjusting, setAutoAdjusting] = useState(false)
   const [autoAdjustedProgram, setAutoAdjustedProgram] = useState<Program | null>(null)
+
+  // Video call
+  const [showVideoCall, setShowVideoCall] = useState(false)
 
   const loadData = useCallback(async () => {
     if (!id) return
@@ -539,6 +543,7 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
   })()
 
   return (
+    <>
     <div className="p-8 max-w-5xl">
       <Link to="/clients" className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 mb-6 transition-colors">
         <ArrowLeft className="h-4 w-4" /> Terug naar clients
@@ -565,6 +570,10 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button onClick={() => setShowVideoCall(true)}
+              className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm">
+              <Video className="h-4 w-4" /> Video Call
+            </button>
             <button onClick={handleInsights} disabled={loadingInsights}
               className="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 shadow-sm">
               {loadingInsights ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
@@ -1777,5 +1786,14 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
         )
       })()}
     </div>
+
+    {showVideoCall && (
+      <VideoCallModal
+        roomName={`coachai-${id?.replace(/-/g, '').slice(0, 16)}`}
+        displayName="Coach"
+        onClose={() => setShowVideoCall(false)}
+      />
+    )}
+    </>
   )
 }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
-import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone, Flame } from 'lucide-react'
+import { Zap, Loader2, ClipboardList, Utensils, Target, Trophy, CheckCircle2, Calendar, Megaphone, Flame, Video } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Program, CheckIn, MealPlan, Milestone, Broadcast, Challenge, ChallengeEntry, Habit, HabitLog } from '../lib/types'
+import VideoCallModal from '../components/VideoCallModal'
 
 interface PortalClient {
   id: string
@@ -38,6 +39,7 @@ export default function Portal() {
   const [savingEntry, setSavingEntry] = useState<string | null>(null)
   const [entryError, setEntryError] = useState<string | null>(null)
   const savingRef = useRef<string | null>(null)
+  const [showVideoCall, setShowVideoCall] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -141,6 +143,7 @@ export default function Portal() {
   )
 
   return (
+    <>
     <div className="min-h-screen bg-slate-900">
       {/* Top bar */}
       <div className="bg-sidebar border-b border-white/5 px-6 py-4">
@@ -193,6 +196,12 @@ export default function Portal() {
               </div>
             ))}
           </div>
+          <button
+            onClick={() => setShowVideoCall(true)}
+            className="mt-4 w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+          >
+            <Video className="h-4 w-4" /> Video bellen met trainer
+          </button>
         </div>
 
         {/* Tabs */}
@@ -477,5 +486,14 @@ export default function Portal() {
         )}
       </div>
     </div>
+
+    {showVideoCall && client && (
+      <VideoCallModal
+        roomName={`coachai-${client.id.replace(/-/g, '').slice(0, 16)}`}
+        displayName={client.full_name}
+        onClose={() => setShowVideoCall(false)}
+      />
+    )}
+    </>
   )
 }
