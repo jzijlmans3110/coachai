@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Coach } from '../lib/types'
-import { Crown, User, CreditCard, Shield, Check } from 'lucide-react'
+import { Crown, User, CreditCard, Shield, Check, Gift, Copy, CheckCircle2 } from 'lucide-react'
 
 export default function Settings() {
   const [coach, setCoach] = useState<Coach | null>(null)
@@ -11,6 +11,10 @@ export default function Settings() {
   const [saved, setSaved] = useState(false)
   const [checkoutLoading, setCheckoutLoading] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [referralCode, setReferralCode] = useState('')
+  const [copiedReferral, setCopiedReferral] = useState(false)
+  const [intakeToken, setIntakeToken] = useState('')
+  const [copiedIntake, setCopiedIntake] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -20,6 +24,8 @@ export default function Settings() {
       const { data } = await supabase.from('coaches').select('*').eq('id', user.id).single()
       setCoach(data)
       setFullName(data?.full_name ?? '')
+      setReferralCode(data?.referral_code ?? '')
+      setIntakeToken(data?.intake_token ?? '')
       setLoading(false)
     }
     load()
@@ -147,6 +153,43 @@ export default function Settings() {
           </div>
         )}
       </div>
+
+      {/* Referral */}
+      {referralCode && (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-5">
+          <div className="flex items-center gap-2.5 mb-4">
+            <div className="bg-amber-50 rounded-lg p-1.5">
+              <Gift className="h-4 w-4 text-amber-600" />
+            </div>
+            <h2 className="font-semibold text-slate-900 text-sm">Referral programma</h2>
+          </div>
+          <p className="text-sm text-slate-600 mb-4">Deel CoachAI met andere trainers en verdien een gratis maand voor elke nieuwe coach die zich aanmeldt via jouw link.</p>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-400 mb-0.5">Jouw referral link</p>
+                <p className="text-sm font-mono text-slate-700">{window.location.origin}/auth?ref={referralCode}</p>
+              </div>
+              <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/auth?ref=${referralCode}`); setCopiedReferral(true); setTimeout(() => setCopiedReferral(false), 2000) }}
+                className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                {copiedReferral ? <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Gekopieerd</> : <><Copy className="h-3 w-3" /> Kopiëren</>}
+              </button>
+            </div>
+            {intakeToken && (
+              <div className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-400 mb-0.5">Intake link (deel met nieuwe clients)</p>
+                  <p className="text-sm font-mono text-slate-700">{window.location.origin}/intake/{intakeToken}</p>
+                </div>
+                <button onClick={() => { navigator.clipboard.writeText(`${window.location.origin}/intake/${intakeToken}`); setCopiedIntake(true); setTimeout(() => setCopiedIntake(false), 2000) }}
+                  className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 bg-white border border-slate-200 px-3 py-1.5 rounded-lg transition-colors">
+                  {copiedIntake ? <><CheckCircle2 className="h-3 w-3 text-emerald-500" /> Gekopieerd</> : <><Copy className="h-3 w-3" /> Kopiëren</>}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* GDPR badge */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">

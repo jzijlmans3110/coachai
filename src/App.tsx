@@ -8,6 +8,12 @@ import Clients from './pages/Clients'
 import ClientDetail from './pages/ClientDetail'
 import Settings from './pages/Settings'
 import CheckIn from './pages/CheckIn'
+import Pipeline from './pages/Pipeline'
+import Calendar from './pages/Calendar'
+import Templates from './pages/Templates'
+import Invoices from './pages/Invoices'
+import Intake from './pages/Intake'
+import Portal from './pages/Portal'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
@@ -29,7 +35,7 @@ export default function App() {
   if (session === undefined) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600" />
       </div>
     )
   }
@@ -37,8 +43,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public routes */}
         <Route path="/auth" element={session ? <Navigate to="/dashboard" replace /> : <Auth />} />
         <Route path="/checkin/:clientId" element={<CheckIn />} />
+        <Route path="/intake/:token" element={<Intake />} />
+        <Route path="/portal/:token" element={<Portal />} />
+
+        {/* Protected routes */}
         <Route
           path="/*"
           element={
@@ -48,6 +59,10 @@ export default function App() {
                   <Route path="/dashboard" element={<Dashboard />} />
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
+                  <Route path="/pipeline" element={<Pipeline />} />
+                  <Route path="/calendar" element={<Calendar />} />
+                  <Route path="/templates" element={<Templates />} />
+                  <Route path="/invoices" element={<Invoices />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, Settings, LogOut, Zap } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, LogOut, Zap, Kanban, Calendar, BookTemplate, Receipt } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface LayoutProps {
@@ -11,7 +11,11 @@ interface LayoutProps {
 const navItems = [
   { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { to: '/clients', icon: Users, label: 'Clients' },
-  { to: '/settings', icon: Settings, label: 'Settings' },
+  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
+  { to: '/calendar', icon: Calendar, label: 'Kalender' },
+  { to: '/templates', icon: BookTemplate, label: 'Templates' },
+  { to: '/invoices', icon: Receipt, label: 'Facturen' },
+  { to: '/settings', icon: Settings, label: 'Instellingen' },
 ]
 
 export default function Layout({ children }: LayoutProps) {
@@ -37,7 +41,6 @@ export default function Layout({ children }: LayoutProps) {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="mx-5 h-px bg-white/5 mb-4" />
 
         {/* Nav */}
@@ -68,7 +71,7 @@ export default function Layout({ children }: LayoutProps) {
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all w-full"
           >
             <LogOut className="h-4 w-4" />
-            Sign out
+            Uitloggen
           </button>
         </div>
       </aside>
