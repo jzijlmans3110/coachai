@@ -110,7 +110,7 @@ export default function Business() {
   })
 
   const monthRevenues: MonthRevenue[] = last6MonthKeys.map(k => {
-    const [year, month] = k.split('-').map(Number)
+    const month = parseInt(k.split('-')[1])
     return { key: k, label: MONTH_NAMES[month - 1], total: revenueByMonth[k] }
   })
 
