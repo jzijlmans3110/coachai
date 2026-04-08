@@ -5,13 +5,13 @@ import {
   TrendingUp, TrendingDown, Minus, RefreshCw, Copy, Check,
   Ruler, Utensils, FileText, Target, MessageSquare, Plus,
   Trophy, Send, Printer, BookmarkPlus, Trash2, CheckCircle2,
-  Camera, Dumbbell, ExternalLink, Flame, Sparkles, X,
+  Camera, Dumbbell, ExternalLink, Flame, Sparkles, X, Clock,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, Program, CheckIn, BodyMeasurement, SessionNote, Milestone, MealPlan, Habit, HabitLog, SessionBrief } from '../lib/types'
 import ProgramView from '../components/ProgramView'
 
-type Tab = 'overzicht' | 'metingen' | 'foto' | 'voeding' | 'notities' | 'doelen' | 'chat' | 'gewoontes' | 'brief'
+type Tab = 'overzicht' | 'metingen' | 'foto' | 'voeding' | 'notities' | 'doelen' | 'chat' | 'gewoontes' | 'brief' | 'tijdlijn'
 
 interface ProgressPhoto {
   id: string
@@ -161,6 +161,14 @@ export default function ClientDetail() {
   const [loadingBrief, setLoadingBrief] = useState(false)
   const [showBrief, setShowBrief] = useState(false)
 
+  // Tijdlijn
+  const [showAllTimeline, setShowAllTimeline] = useState(false)
+
+  // Smart Auto-Adjust
+  const [dismissedAutoAdjust, setDismissedAutoAdjust] = useState(false)
+  const [autoAdjusting, setAutoAdjusting] = useState(false)
+  const [autoAdjustedProgram, setAutoAdjustedProgram] = useState<Program | null>(null)
+
   const loadData = useCallback(async () => {
     if (!id) return
     const { data: { user } } = await supabase.auth.getUser()
@@ -275,6 +283,23 @@ export default function ClientDetail() {
     if (data?.program) { setAdjustedProgram(data.program); loadData() }
     else setError(data?.error || error?.message || 'Aanpassen mislukt')
     setAdjusting(null)
+  }
+
+  const handleAutoAdjust = async () => {
+    if (!client || programs.length === 0) return
+    const latestProgram = programs[0]
+    const deloadWeek = checkIns.length > 0 ? Math.max(...checkIns.map(c => c.week_number)) + 1 : 1
+    setAutoAdjusting(true); setAutoAdjustedProgram(null)
+    const { data, error } = await supabase.functions.invoke('adjust-program', {
+      body: {
+        program_id: latestProgram.id,
+        client_id: client.id,
+        instruction: `Genereer een deload week: verlaag het volume met 40-50%, behoud de oefeningen maar verlaag sets en gewichten. Dit is week ${deloadWeek} van herstel.`,
+      },
+    })
+    if (data?.program) setAutoAdjustedProgram(data.program)
+    else setError(data?.error || error?.message || 'Auto-aanpassen mislukt')
+    setAutoAdjusting(false)
   }
 
   const handleSaveTemplate = async (program: Program) => {
@@ -453,6 +478,7 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
     { key: 'gewoontes', label: 'Gewoontes', icon: <Flame className="h-3.5 w-3.5" /> },
     { key: 'brief', label: 'Session Brief', icon: <Sparkles className="h-3.5 w-3.5" /> },
     { key: 'chat', label: 'AI Chat', icon: <MessageSquare className="h-3.5 w-3.5" /> },
+    { key: 'tijdlijn', label: 'Tijdlijn', icon: <Clock className="h-3.5 w-3.5" /> },
   ]
 
   const handleAddPhoto = async () => {
@@ -493,6 +519,24 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
   const portalUrl = portalToken ? `${window.location.origin}/portal/${portalToken}` : ''
 
   const inputCls = "w-full text-sm border border-slate-200 rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-400 transition-colors"
+
+  // Smart Auto-Adjust detection
+  const autoAdjustAlert = (() => {
+    if (checkIns.length < 3) return null
+    // checkIns are ordered newest-first; take the last 3 submitted
+    const recent = checkIns.slice(0, 3)
+    const energyValues = recent.map(c => c.energy)
+    // Condition 1: 3 consecutive check-ins with energy < 6
+    const allLow = energyValues.every(e => e < 6)
+    // Condition 2: strictly declining trend over last 3
+    const declining = energyValues[0] < energyValues[1] && energyValues[1] < energyValues[2]
+    if (!allLow && !declining) return null
+    const firstName = client.full_name.split(' ')[0]
+    if (allLow) {
+      return `${firstName} heeft 3 check-ins op rij met lage energie (${energyValues.map(e => `${e}/10`).join(', ')}). Een deload week kan herstel bevorderen.`
+    }
+    return `Dalende energietrend bij ${firstName} over de laatste 3 check-ins (${energyValues.reverse().map(e => `${e}/10`).join(' → ')}). Overweeg een deload week.`
+  })()
 
   return (
     <div className="p-8 max-w-5xl">
@@ -584,6 +628,55 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
       {/* ── OVERZICHT ── */}
       {tab === 'overzicht' && (
         <div>
+          {/* Smart Auto-Adjust */}
+          {autoAdjustAlert && !dismissedAutoAdjust && (
+            <div className="bg-amber-50 border border-amber-100 rounded-2xl p-5 mb-5">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-start gap-3 flex-1">
+                  <TrendingDown className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-800 mb-1">Smart Auto-Adjust</p>
+                    <p className="text-sm text-amber-700 mb-4">{autoAdjustAlert}</p>
+                    {autoAdjusting ? (
+                      <div className="flex items-center gap-2 text-amber-700 text-sm">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Deload week genereren...
+                      </div>
+                    ) : autoAdjustedProgram ? (
+                      <div>
+                        <div className="flex items-center gap-2 mb-3">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          <p className="text-sm font-semibold text-slate-800">Deload week gegenereerd</p>
+                        </div>
+                        <ProgramView
+                          program={autoAdjustedProgram}
+                          onSaved={() => { setAutoAdjustedProgram(null); setDismissedAutoAdjust(true); loadData() }}
+                        />
+                      </div>
+                    ) : programs.length > 0 ? (
+                      <button
+                        onClick={handleAutoAdjust}
+                        className="flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors shadow-sm"
+                      >
+                        <Zap className="h-4 w-4" />
+                        Genereer Deload Week
+                      </button>
+                    ) : (
+                      <p className="text-xs text-amber-600">Genereer eerst een programma om aan te passen.</p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setDismissedAutoAdjust(true)}
+                  className="text-amber-400 hover:text-amber-600 transition-colors flex-shrink-0"
+                  title="Sluiten"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* AI Insights */}
           {loadingInsights && (
             <div className="bg-slate-900 rounded-2xl px-6 py-8 text-center mb-5">
@@ -1584,6 +1677,105 @@ ${weeks.map(w => `<h2>Week ${w.week}</h2>${w.days.map(d => `<h3>${d.day} <span c
           )}
         </div>
       )}
+
+      {/* ── TIJDLIJN ── */}
+      {tab === 'tijdlijn' && (() => {
+        type TLEventType = 'joined' | 'program' | 'checkin' | 'meal' | 'milestone' | 'note' | 'measurement'
+        type TLEvent = { id: string; date: Date; type: TLEventType; icon: string; title: string; description: string }
+
+        const tlEvents: TLEvent[] = []
+
+        tlEvents.push({ id: 'joined', date: new Date(client.created_at), type: 'joined', icon: '📅', title: 'Client toegevoegd', description: `${client.full_name} is toegevoegd als client` })
+
+        programs.forEach(p => tlEvents.push({ id: `program-${p.id}`, date: new Date(p.created_at), type: 'program', icon: '💪', title: 'Programma aangemaakt', description: p.title }))
+
+        checkIns.forEach(ci => tlEvents.push({ id: `checkin-${ci.id}`, date: new Date(ci.submitted_at), type: 'checkin', icon: '✅', title: 'Check-in ingediend', description: `Week ${ci.week_number} · Energie ${ci.energy}/10${ci.sleep_hrs ? ` · Slaap ${ci.sleep_hrs}u` : ''}` }))
+
+        mealPlans.forEach(mp => tlEvents.push({ id: `meal-${mp.id}`, date: new Date(mp.created_at), type: 'meal', icon: '🍽️', title: 'Voedingsplan aangemaakt', description: mp.title }))
+
+        milestones.filter(m => m.achieved_at).forEach(m => tlEvents.push({ id: `milestone-${m.id}`, date: new Date(m.achieved_at!), type: 'milestone', icon: '🏆', title: 'Milestone behaald', description: m.title }))
+
+        notes.forEach(n => tlEvents.push({ id: `note-${n.id}`, date: new Date(n.session_date), type: 'note', icon: '📝', title: 'Session note toegevoegd', description: n.content.length > 80 ? n.content.slice(0, 80) + '…' : n.content }))
+
+        measurements.forEach(m => {
+          const parts: string[] = []
+          if (m.weight_kg) parts.push(`${m.weight_kg} kg`)
+          if (m.waist_cm) parts.push(`taille ${m.waist_cm} cm`)
+          if (m.chest_cm) parts.push(`borst ${m.chest_cm} cm`)
+          tlEvents.push({ id: `measurement-${m.id}`, date: new Date(m.measured_at), type: 'measurement', icon: '📏', title: 'Meting gedaan', description: parts.length > 0 ? parts.join(' · ') : 'Lichaamsmetingen vastgelegd' })
+        })
+
+        tlEvents.sort((a, b) => b.date.getTime() - a.date.getTime())
+
+        const TL_PAGE = 50
+        const tlVisible = showAllTimeline ? tlEvents : tlEvents.slice(0, TL_PAGE)
+        const tlHasMore = tlEvents.length > TL_PAGE
+
+        const tlDot: Record<TLEventType, string> = { joined: 'bg-slate-400', program: 'bg-brand-500', checkin: 'bg-emerald-500', meal: 'bg-orange-500', milestone: 'bg-amber-500', note: 'bg-blue-500', measurement: 'bg-slate-500' }
+        const tlBorder: Record<TLEventType, string> = { joined: 'border-slate-100', program: 'border-brand-100', checkin: 'border-emerald-100', meal: 'border-orange-100', milestone: 'border-amber-100', note: 'border-blue-100', measurement: 'border-slate-100' }
+        const tlBg: Record<TLEventType, string> = { joined: 'bg-white', program: 'bg-brand-50/40', checkin: 'bg-emerald-50/40', meal: 'bg-orange-50/40', milestone: 'bg-amber-50/40', note: 'bg-blue-50/40', measurement: 'bg-white' }
+
+        if (tlEvents.length === 0) {
+          return (
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-card px-6 py-12 text-center">
+              <Clock className="h-8 w-8 text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">Nog geen activiteit om te tonen.</p>
+            </div>
+          )
+        }
+
+        const tlGrouped: { dateKey: string; eventsInDay: TLEvent[] }[] = []
+        tlVisible.forEach(ev => {
+          const key = ev.date.toISOString().slice(0, 10)
+          const existing = tlGrouped.find(g => g.dateKey === key)
+          if (existing) existing.eventsInDay.push(ev)
+          else tlGrouped.push({ dateKey: key, eventsInDay: [ev] })
+        })
+
+        return (
+          <div>
+            <div className="relative">
+              <div className="absolute left-[5.5rem] top-0 bottom-0 w-px bg-slate-100" />
+              <div className="space-y-0">
+                {tlGrouped.map(({ dateKey, eventsInDay }) => {
+                  const d = new Date(dateKey + 'T12:00:00')
+                  const dateLabel = d.toLocaleDateString('nl-NL', { day: '2-digit', month: 'short' })
+                  return (
+                    <div key={dateKey} className="flex gap-0 mb-4">
+                      <div className="w-20 flex-shrink-0 pt-2 text-right pr-4">
+                        <span className="text-xs font-semibold text-slate-400 leading-tight whitespace-nowrap">{dateLabel}</span>
+                      </div>
+                      <div className="flex-1 pl-6 relative">
+                        {eventsInDay.map(ev => (
+                          <div key={ev.id} className="relative flex items-start gap-3 mb-2">
+                            <div className={`absolute -left-[1.65rem] top-2 w-3 h-3 rounded-full border-2 border-white flex-shrink-0 ${tlDot[ev.type]}`} />
+                            <div className={`flex-1 rounded-xl border px-3 py-2.5 shadow-sm ${tlBg[ev.type]} ${tlBorder[ev.type]}`}>
+                              <div className="flex items-start gap-2">
+                                <span className="text-sm leading-none mt-0.5">{ev.icon}</span>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-slate-800">{ev.title}</p>
+                                  <p className="text-xs text-slate-500 mt-0.5 leading-snug">{ev.description}</p>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            {tlHasMore && !showAllTimeline && (
+              <div className="mt-2 text-center">
+                <button onClick={() => setShowAllTimeline(true)} className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition-colors">
+                  Toon meer ({tlEvents.length - TL_PAGE} verborgen)
+                </button>
+              </div>
+            )}
+          </div>
+        )
+      })()}
     </div>
   )
 }
