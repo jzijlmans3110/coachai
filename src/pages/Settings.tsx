@@ -1,12 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Coach } from '../lib/types'
-import { loadStripe } from '@stripe/stripe-js'
 import { Crown, User, CreditCard } from 'lucide-react'
-
-const stripePromise = import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
-  ? loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY)
-  : null
 
 export default function Settings() {
   const [coach, setCoach] = useState<Coach | null>(null)
@@ -44,15 +39,9 @@ export default function Settings() {
   }
 
   const handleUpgrade = async () => {
-    if (!stripePromise) {
-      alert('Stripe is not configured. Add VITE_STRIPE_PUBLISHABLE_KEY to your .env file.')
-      return
-    }
     setCheckoutLoading(true)
 
-    const { data, error } = await supabase.functions.invoke('create-checkout-session', {
-      body: { price_id: import.meta.env.VITE_STRIPE_PRICE_ID },
-    })
+    const { data, error } = await supabase.functions.invoke('create-checkout-session', {})
 
     if (error || !data?.url) {
       alert('Failed to start checkout. Please try again.')
