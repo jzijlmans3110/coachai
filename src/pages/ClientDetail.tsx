@@ -43,8 +43,8 @@ export default function ClientDetail() {
       body: { client_id: client.id, coach_id: user.id },
     })
 
-    if (error) {
-      setError('Failed to generate program. Please try again.')
+    if (error || data?.error) {
+      setError(data?.error || `Failed: ${error?.message}`)
     } else if (data?.program) {
       setGeneratedProgram(data.program)
       loadData()

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { Dumbbell } from 'lucide-react'
+import { Zap } from 'lucide-react'
 
 export default function Auth() {
   const [mode, setMode] = useState<'login' | 'signup'>('login')
@@ -21,110 +21,151 @@ export default function Auth() {
       const { error } = await supabase.auth.signUp({
         email,
         password,
-        options: {
-          data: { full_name: fullName },
-        },
+        options: { data: { full_name: fullName } },
       })
-      if (error) {
-        setError(error.message)
-      } else {
-        setMessage('Check your email to confirm your account.')
-      }
+      if (error) setError(error.message)
+      else setMessage('Check your email to confirm your account.')
     } else {
       const { error } = await supabase.auth.signInWithPassword({ email, password })
       if (error) setError(error.message)
     }
-
     setLoading(false)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-md p-8">
+    <div className="min-h-screen flex">
+      {/* Left — branding */}
+      <div className="hidden lg:flex w-1/2 bg-sidebar flex-col justify-between p-12 relative overflow-hidden">
+        {/* Glow */}
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-brand-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+
         {/* Logo */}
-        <div className="flex items-center gap-2 mb-8">
-          <div className="bg-blue-500 rounded-lg p-1.5">
-            <Dumbbell className="h-5 w-5 text-white" />
+        <div className="flex items-center gap-2.5 relative z-10">
+          <div className="bg-brand-600 rounded-lg p-2">
+            <Zap className="h-5 w-5 text-white" fill="white" />
           </div>
-          <span className="font-bold text-gray-900 text-xl">CoachAI</span>
+          <span className="font-bold text-white text-xl tracking-wide">COACH<span className="text-brand-400">AI</span></span>
         </div>
 
-        <h1 className="text-2xl font-bold text-gray-900 mb-1">
-          {mode === 'login' ? 'Welcome back' : 'Create your account'}
-        </h1>
-        <p className="text-gray-500 text-sm mb-6">
-          {mode === 'login'
-            ? 'Sign in to manage your clients and programs'
-            : 'Start building AI-powered training programs'}
-        </p>
+        {/* Copy */}
+        <div className="relative z-10">
+          <p className="text-brand-400 text-sm font-semibold uppercase tracking-widest mb-4">Voor de beste trainers</p>
+          <h1 className="text-4xl font-bold text-white leading-tight mb-6">
+            Geef jouw coaching<br />
+            een <span className="text-brand-400">oneerlijk</span><br />
+            voordeel.
+          </h1>
+          <p className="text-slate-400 text-base leading-relaxed max-w-sm">
+            AI genereert gepersonaliseerde trainingsprogramma's in seconden. Jij focust op coachen. CoachAI doet de rest.
+          </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === 'signup' && (
+          {/* Stats */}
+          <div className="flex gap-8 mt-10">
+            {[
+              { value: '10s', label: 'Programma genereren' },
+              { value: '4×', label: 'Meer klanten mogelijk' },
+              { value: '100%', label: 'GDPR-compliant' },
+            ].map(({ value, label }) => (
+              <div key={label}>
+                <p className="text-2xl font-bold text-white">{value}</p>
+                <p className="text-slate-500 text-xs mt-0.5">{label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <p className="text-slate-600 text-xs relative z-10">© 2026 CoachAI · GDPR Compliant · EU Data</p>
+      </div>
+
+      {/* Right — form */}
+      <div className="flex-1 flex items-center justify-center p-8 bg-slate-50">
+        <div className="w-full max-w-sm">
+          {/* Mobile logo */}
+          <div className="flex items-center gap-2 mb-8 lg:hidden">
+            <div className="bg-brand-600 rounded-lg p-1.5">
+              <Zap className="h-4 w-4 text-white" fill="white" />
+            </div>
+            <span className="font-bold text-slate-900 text-lg tracking-wide">COACH<span className="text-brand-600">AI</span></span>
+          </div>
+
+          <h2 className="text-2xl font-bold text-slate-900 mb-1">
+            {mode === 'login' ? 'Welkom terug' : 'Start vandaag'}
+          </h2>
+          <p className="text-slate-500 text-sm mb-8">
+            {mode === 'login'
+              ? 'Log in om je clients en programma\'s te beheren'
+              : 'Maak een gratis account aan en genereer je eerste programma'}
+          </p>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {mode === 'signup' && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">Naam</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                  required
+                  className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 shadow-card focus:border-brand-500 focus:ring-0 transition-colors"
+                  placeholder="Jan de Vries"
+                />
+              </div>
+            )}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">E-mail</label>
               <input
-                type="text"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Jane Smith"
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 shadow-card focus:border-brand-500 focus:ring-0 transition-colors"
+                placeholder="jan@example.com"
               />
             </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="jane@example.com"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              required
-              minLength={6}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg px-4 py-3">
-              {error}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Wachtwoord</label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                minLength={6}
+                className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 placeholder-slate-400 shadow-card focus:border-brand-500 focus:ring-0 transition-colors"
+                placeholder="••••••••"
+              />
             </div>
-          )}
-          {message && (
-            <div className="bg-green-50 border border-green-200 text-green-700 text-sm rounded-lg px-4 py-3">
-              {message}
-            </div>
-          )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {loading ? 'Loading...' : mode === 'login' ? 'Sign in' : 'Create account'}
-          </button>
-        </form>
+            {error && (
+              <div className="bg-red-50 border border-red-100 text-red-600 text-sm rounded-lg px-4 py-3">
+                {error}
+              </div>
+            )}
+            {message && (
+              <div className="bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm rounded-lg px-4 py-3">
+                {message}
+              </div>
+            )}
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
-          <button
-            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}
-            className="text-blue-500 hover:text-blue-600 font-medium"
-          >
-            {mode === 'login' ? 'Sign up' : 'Sign in'}
-          </button>
-        </p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50 shadow-sm"
+            >
+              {loading ? 'Laden...' : mode === 'login' ? 'Inloggen' : 'Account aanmaken'}
+            </button>
+          </form>
+
+          <p className="text-center text-sm text-slate-500 mt-6">
+            {mode === 'login' ? 'Nog geen account? ' : 'Al een account? '}
+            <button
+              onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setMessage('') }}
+              className="text-brand-600 hover:text-brand-700 font-semibold transition-colors"
+            >
+              {mode === 'login' ? 'Aanmelden' : 'Inloggen'}
+            </button>
+          </p>
+        </div>
       </div>
     </div>
   )

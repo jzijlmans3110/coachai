@@ -3,7 +3,14 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
+
+const json = (data: unknown) =>
+  new Response(JSON.stringify(data), {
+    status: 200,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -14,18 +21,18 @@ Deno.serve(async (req) => {
     const { client_id, coach_id } = await req.json()
 
     if (!client_id || !coach_id) {
-      return new Response(JSON.stringify({ error: 'client_id and coach_id are required' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ error: 'client_id and coach_id are required' })
     }
 
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    const anthropicKey = Deno.env.get('ANTHROPIC_API_KEY')
 
-    // Fetch client data
+    if (!supabaseUrl || !serviceKey) return json({ error: 'Missing SUPABASE env vars' })
+    if (!anthropicKey) return json({ error: 'Missing ANTHROPIC_API_KEY' })
+
+    const supabase = createClient(supabaseUrl, serviceKey)
+
     const { data: client, error: clientError } = await supabase
       .from('clients')
       .select('*')
@@ -34,10 +41,7 @@ Deno.serve(async (req) => {
       .single()
 
     if (clientError || !client) {
-      return new Response(JSON.stringify({ error: 'Client not found' }), {
-        status: 404,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ error: `Client not found: ${clientError?.message}` })
     }
 
     const weeks = 4
@@ -48,17 +52,16 @@ Days/week: ${client.days_per_week}
 Equipment: ${client.equipment?.join(', ') || 'bodyweight'}
 Injuries: ${client.injuries || 'none'}`
 
-    // Call Claude API
     const claudeResponse = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
+        'x-api-key': anthropicKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-6',
-        max_tokens: 4096,
+        max_tokens: 16000,
         system: `You are an expert personal trainer. Always respond with valid JSON only, no markdown, no explanation.
 Format:
 {
@@ -84,28 +87,26 @@ Format:
 
     if (!claudeResponse.ok) {
       const err = await claudeResponse.text()
-      console.error('Claude API error:', err)
-      return new Response(JSON.stringify({ error: 'AI generation failed' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ error: `Claude API failed (${claudeResponse.status}): ${err}` })
     }
 
     const claudeData = await claudeResponse.json()
     const rawContent = claudeData.content?.[0]?.text ?? ''
 
+    // Strip markdown and extract JSON — v10
+    let cleaned = rawContent.trim()
+    cleaned = cleaned.replace(/^```(?:json)?[\r\n]*/m, '').replace(/[\r\n]*```\s*$/m, '').trim()
+    const start = cleaned.indexOf('{')
+    const end = cleaned.lastIndexOf('}')
+    if (start !== -1 && end !== -1) cleaned = cleaned.slice(start, end + 1)
+
     let programContent
     try {
-      programContent = JSON.parse(rawContent)
-    } catch {
-      console.error('Failed to parse Claude response:', rawContent)
-      return new Response(JSON.stringify({ error: 'Failed to parse AI response' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      programContent = JSON.parse(cleaned)
+    } catch (e) {
+      return json({ error: `v10 parse error: ${String(e)} | raw[:100]: ${rawContent.slice(0, 100)}` })
     }
 
-    // Save to database
     const { data: program, error: insertError } = await supabase
       .from('programs')
       .insert({
@@ -120,21 +121,11 @@ Format:
       .single()
 
     if (insertError) {
-      console.error('DB insert error:', insertError)
-      return new Response(JSON.stringify({ error: 'Failed to save program' }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+      return json({ error: `DB insert failed: ${insertError.message}` })
     }
 
-    return new Response(JSON.stringify({ program }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return json({ program })
   } catch (err) {
-    console.error('Unexpected error:', err)
-    return new Response(JSON.stringify({ error: 'Internal server error' }), {
-      status: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
+    return json({ error: `Unexpected error: ${String(err)}` })
   }
 })

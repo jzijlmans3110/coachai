@@ -1,6 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, Settings, LogOut, Dumbbell } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, LogOut, Zap } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 
 interface LayoutProps {
@@ -23,42 +23,49 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-slate-50">
       {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-gray-200 flex flex-col">
+      <aside className="w-60 bg-sidebar flex flex-col fixed inset-y-0 left-0 z-10">
         {/* Logo */}
-        <div className="flex items-center gap-2 px-6 py-5 border-b border-gray-200">
-          <div className="bg-blue-500 rounded-lg p-1.5">
-            <Dumbbell className="h-5 w-5 text-white" />
+        <div className="flex items-center gap-2.5 px-5 py-6">
+          <div className="bg-brand-600 rounded-lg p-1.5 flex items-center justify-center">
+            <Zap className="h-4 w-4 text-white" fill="white" />
           </div>
-          <span className="font-bold text-gray-900 text-lg">CoachAI</span>
+          <div>
+            <span className="font-bold text-white text-sm tracking-wide">COACH</span>
+            <span className="font-bold text-brand-400 text-sm tracking-wide">AI</span>
+          </div>
         </div>
 
+        {/* Divider */}
+        <div className="mx-5 h-px bg-white/5 mb-4" />
+
         {/* Nav */}
-        <nav className="flex-1 px-3 py-4 space-y-1">
+        <nav className="flex-1 px-3 space-y-0.5">
           {navItems.map(({ to, icon: Icon, label }) => (
             <NavLink
               key={to}
               to={to}
               className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
                   isActive
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-white/10 text-white'
+                    : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
                 }`
               }
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4 flex-shrink-0" />
               {label}
             </NavLink>
           ))}
         </nav>
 
-        {/* Sign out */}
-        <div className="px-3 py-4 border-t border-gray-200">
+        {/* Bottom */}
+        <div className="px-3 pb-5 pt-4">
+          <div className="mx-2 h-px bg-white/5 mb-4" />
           <button
             onClick={handleSignOut}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors w-full"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all w-full"
           >
             <LogOut className="h-4 w-4" />
             Sign out
@@ -67,7 +74,7 @@ export default function Layout({ children }: LayoutProps) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 ml-60 min-h-screen overflow-auto">
         {children}
       </main>
     </div>

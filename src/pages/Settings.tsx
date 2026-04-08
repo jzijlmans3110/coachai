@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Coach } from '../lib/types'
-import { Crown, User, CreditCard } from 'lucide-react'
+import { Crown, User, CreditCard, Shield, Check } from 'lucide-react'
 
 export default function Settings() {
   const [coach, setCoach] = useState<Coach | null>(null)
@@ -17,7 +17,6 @@ export default function Settings() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       setEmail(user.email ?? '')
-
       const { data } = await supabase.from('coaches').select('*').eq('id', user.id).single()
       setCoach(data)
       setFullName(data?.full_name ?? '')
@@ -31,124 +30,138 @@ export default function Settings() {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
-
     await supabase.from('coaches').upsert({ id: user.id, full_name: fullName })
     setSaving(false)
     setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    setTimeout(() => setSaved(false), 2500)
   }
 
   const handleUpgrade = async () => {
     setCheckoutLoading(true)
-
     const { data, error } = await supabase.functions.invoke('create-checkout-session', {})
-
-    if (error || !data?.url) {
-      alert('Failed to start checkout. Please try again.')
-      setCheckoutLoading(false)
-      return
-    }
-
+    if (error || !data?.url) { alert('Checkout mislukt. Probeer opnieuw.'); setCheckoutLoading(false); return }
     window.location.href = data.url
   }
 
+  const inputCls = "w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:border-brand-500 focus:bg-white focus:ring-0 transition-colors"
+
   if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500" />
+    <div className="flex items-center justify-center h-screen">
+      <div className="w-8 h-8 border-2 border-brand-600 border-t-transparent rounded-full animate-spin" />
     </div>
   )
 
   return (
     <div className="p-8 max-w-2xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-500 text-sm mt-1">Manage your account and subscription</p>
+        <h1 className="text-2xl font-bold text-slate-900">Instellingen</h1>
+        <p className="text-slate-400 text-sm mt-0.5">Beheer je account en abonnement</p>
       </div>
 
       {/* Profile */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6 mb-6">
-        <div className="flex items-center gap-2 mb-5">
-          <User className="h-5 w-5 text-gray-600" />
-          <h2 className="font-semibold text-gray-900">Profile</h2>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-5">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="bg-slate-100 rounded-lg p-1.5">
+            <User className="h-4 w-4 text-slate-600" />
+          </div>
+          <h2 className="font-semibold text-slate-900 text-sm">Profiel</h2>
         </div>
         <form onSubmit={handleSaveProfile} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full name</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={e => setFullName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Naam</label>
+            <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              disabled
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed"
-            />
+            <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">E-mail</label>
+            <input type="email" value={email} disabled className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-100 rounded-xl text-sm text-slate-400 cursor-not-allowed" />
           </div>
-          <button
-            type="submit"
-            disabled={saving}
-            className="bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Saving...' : saved ? 'Saved!' : 'Save changes'}
+          <button type="submit" disabled={saving} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-50 shadow-sm">
+            {saving ? 'Opslaan...' : saved ? '✓ Opgeslagen' : 'Wijzigingen opslaan'}
           </button>
         </form>
       </div>
 
       {/* Subscription */}
-      <div className="bg-white rounded-xl border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-5">
-          <CreditCard className="h-5 w-5 text-gray-600" />
-          <h2 className="font-semibold text-gray-900">Subscription</h2>
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-5">
+        <div className="flex items-center gap-2.5 mb-5">
+          <div className="bg-slate-100 rounded-lg p-1.5">
+            <CreditCard className="h-4 w-4 text-slate-600" />
+          </div>
+          <h2 className="font-semibold text-slate-900 text-sm">Abonnement</h2>
         </div>
 
-        <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl border border-gray-100 mb-4">
+        <div className="flex items-center justify-between p-4 bg-slate-50 rounded-xl border border-slate-100 mb-4">
           <div>
-            <p className="font-medium text-gray-900 capitalize">{coach?.plan ?? 'free'} plan</p>
-            <p className="text-sm text-gray-500 mt-0.5">
+            <p className="font-semibold text-slate-900 text-sm capitalize">
+              {coach?.plan === 'pro' ? 'Pro' : 'Gratis'} plan
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
               {coach?.plan === 'pro'
-                ? 'Unlimited clients · AI programs · Check-in feedback'
-                : 'Up to 3 clients · AI programs'}
+                ? 'Onbeperkte clients · AI-programma\'s · Check-in feedback'
+                : 'Tot 3 clients · AI-programma\'s'}
             </p>
           </div>
           {coach?.plan === 'pro' && (
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
-              <Crown className="h-3.5 w-3.5" />
+            <span className="flex items-center gap-1.5 text-xs font-bold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full">
+              <Crown className="h-3 w-3" />
               Pro
             </span>
           )}
         </div>
 
         {coach?.plan !== 'pro' && (
-          <div className="border border-blue-200 rounded-xl p-5 bg-blue-50">
-            <div className="flex items-center gap-2 mb-2">
-              <Crown className="h-5 w-5 text-blue-500" />
-              <h3 className="font-semibold text-blue-900">Upgrade to Pro</h3>
+          <div className="rounded-2xl overflow-hidden border border-brand-200 bg-gradient-to-br from-brand-50 to-white">
+            <div className="p-5">
+              <div className="flex items-center gap-2 mb-1">
+                <Crown className="h-4 w-4 text-brand-600" />
+                <span className="font-bold text-brand-900 text-sm">Upgrade naar Pro</span>
+              </div>
+              <p className="text-xs text-slate-500 mb-4">Schaal je praktijk zonder beperkingen</p>
+              <ul className="space-y-2 mb-5">
+                {[
+                  'Onbeperkte clients',
+                  'Onbeperkte AI-programma\'s',
+                  'AI check-in feedback',
+                  'Prioriteitsondersteuning',
+                ].map(f => (
+                  <li key={f} className="flex items-center gap-2 text-sm text-slate-700">
+                    <span className="w-4 h-4 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                      <Check className="h-2.5 w-2.5 text-brand-600" />
+                    </span>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <div className="flex items-baseline gap-1 mb-4">
+                <span className="text-3xl font-bold text-slate-900">€49</span>
+                <span className="text-slate-400 text-sm">/maand</span>
+              </div>
+              <button
+                onClick={handleUpgrade}
+                disabled={checkoutLoading}
+                className="w-full bg-brand-600 hover:bg-brand-700 text-white font-bold py-3 rounded-xl text-sm transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {checkoutLoading ? 'Laden...' : 'Upgraden naar Pro →'}
+              </button>
             </div>
-            <ul className="text-sm text-blue-800 space-y-1 mb-4">
-              <li>✓ Unlimited clients</li>
-              <li>✓ Unlimited AI program generation</li>
-              <li>✓ AI-powered check-in feedback</li>
-              <li>✓ Priority support</li>
-            </ul>
-            <div className="flex items-baseline gap-1 mb-4">
-              <span className="text-2xl font-bold text-blue-900">€49</span>
-              <span className="text-blue-700 text-sm">/month</span>
-            </div>
-            <button
-              onClick={handleUpgrade}
-              disabled={checkoutLoading}
-              className="w-full bg-blue-500 hover:bg-blue-600 text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50"
-            >
-              {checkoutLoading ? 'Loading...' : 'Upgrade to Pro →'}
-            </button>
           </div>
         )}
+      </div>
+
+      {/* GDPR badge */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
+        <div className="flex items-center gap-3">
+          <div className="bg-emerald-50 rounded-xl p-2.5">
+            <Shield className="h-5 w-5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="font-semibold text-slate-900 text-sm">Privacy & GDPR</p>
+            <p className="text-xs text-slate-400 mt-0.5">Jouw data wordt opgeslagen in de EU · Volledig AVG-compliant</p>
+          </div>
+          <span className="ml-auto text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full flex-shrink-0">
+            ✓ Compliant
+          </span>
+        </div>
       </div>
     </div>
   )
