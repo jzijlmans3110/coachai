@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Coach } from '../lib/types'
-import { Crown, User, CreditCard, Shield, Check, Gift, Copy, CheckCircle2, Globe } from 'lucide-react'
+import { Crown, User, CreditCard, Shield, Check, Gift, Copy, CheckCircle2, Languages } from 'lucide-react'
 import { useLanguage } from '../lib/LanguageContext'
 import type { Language } from '../lib/translations'
 
@@ -76,7 +76,7 @@ export default function Settings() {
       <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-6 mb-5">
         <div className="flex items-center gap-2.5 mb-5">
           <div className="bg-slate-100 rounded-lg p-1.5">
-            <Globe className="h-4 w-4 text-slate-600" />
+            <Languages className="h-4 w-4 text-slate-600" />
           </div>
           <h2 className="font-semibold text-slate-900 text-sm">{t('language_section')}</h2>
         </div>
