@@ -4,8 +4,10 @@ import { Plus, ChevronRight, Crown, Megaphone, Send, Check } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, Coach, Broadcast } from '../lib/types'
 import AddClientModal from '../components/AddClientModal'
+import { useLanguage } from '../lib/LanguageContext'
 
 export default function Clients() {
+  const { t } = useLanguage()
   const [clients, setClients] = useState<Client[]>([])
   const [coach, setCoach] = useState<Coach | null>(null)
   const [broadcasts, setBroadcasts] = useState<Broadcast[]>([])
@@ -73,18 +75,18 @@ export default function Clients() {
     <div className="p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Clients</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t('clients_title')}</h1>
           <p className="text-slate-400 text-sm mt-0.5">
             {coach?.plan === 'free'
-              ? `${clients.length}/3 clients · gratis plan`
-              : `${clients.length} client${clients.length !== 1 ? 's' : ''}`}
+              ? t('free_plan_sub', { n: clients.length })
+              : t('pro_plan_sub', { n: clients.length, s: clients.length !== 1 ? 's' : '' })}
           </p>
         </div>
         <div className="flex items-center gap-3">
           {atLimit && (
             <Link to="/settings" className="flex items-center gap-1.5 text-xs font-semibold text-amber-600 hover:text-amber-700 transition-colors">
               <Crown className="h-3.5 w-3.5" />
-              Upgrade voor meer
+              {t('upgrade_for_more')}
             </Link>
           )}
           <button
@@ -93,7 +95,7 @@ export default function Clients() {
             className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed shadow-sm"
           >
             <Plus className="h-4 w-4" />
-            Client toevoegen
+            {t('add_client_btn')}
           </button>
         </div>
       </div>
@@ -103,13 +105,13 @@ export default function Clients() {
           <div className="w-14 h-14 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <Plus className="h-6 w-6 text-brand-600" />
           </div>
-          <p className="text-slate-900 font-semibold mb-1">Nog geen clients</p>
-          <p className="text-slate-400 text-sm mb-6">Voeg je eerste client toe en genereer direct een AI-programma</p>
+          <p className="text-slate-900 font-semibold mb-1">{t('no_clients_empty_title')}</p>
+          <p className="text-slate-400 text-sm mb-6">{t('no_clients_empty_desc')}</p>
           <button
             onClick={() => setShowModal(true)}
             className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-5 py-2.5 rounded-xl transition-colors shadow-sm"
           >
-            Client toevoegen
+            {t('add_client_btn')}
           </button>
         </div>
       ) : (
@@ -117,11 +119,11 @@ export default function Clients() {
           <table className="w-full">
             <thead>
               <tr className="border-b border-slate-50">
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">Client</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">Doel</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">Niveau</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">Dagen/wk</th>
-                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">Toegevoegd</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">{t('table_client')}</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">{t('table_goal')}</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">{t('table_level')}</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">{t('table_days_week')}</th>
+                <th className="text-left text-xs font-semibold text-slate-400 uppercase tracking-wider px-6 py-3.5">{t('table_added')}</th>
                 <th />
               </tr>
             </thead>
@@ -160,28 +162,27 @@ export default function Clients() {
 
       {/* Broadcast panel */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-5">
-        {/* Send broadcast */}
         <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
           <div className="flex items-center gap-2 mb-4">
             <div className="bg-brand-50 rounded-xl p-2">
               <Megaphone className="h-4 w-4 text-brand-600" />
             </div>
             <div>
-              <h2 className="font-bold text-slate-900 text-sm">Broadcast bericht</h2>
-              <p className="text-xs text-slate-400">Stuur een bericht naar alle clients tegelijk</p>
+              <h2 className="font-bold text-slate-900 text-sm">{t('broadcast_title')}</h2>
+              <p className="text-xs text-slate-400">{t('broadcast_desc')}</p>
             </div>
           </div>
           <form onSubmit={handleBroadcast} className="space-y-3">
             <input
               value={broadcastTitle}
               onChange={e => setBroadcastTitle(e.target.value)}
-              placeholder="Onderwerp bijv. 'Nieuwe trainingsweek!'"
+              placeholder={t('broadcast_subject_placeholder')}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
             />
             <textarea
               value={broadcastMessage}
               onChange={e => setBroadcastMessage(e.target.value)}
-              placeholder="Typ je bericht voor alle clients..."
+              placeholder={t('broadcast_message_placeholder')}
               rows={4}
               className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 resize-none"
             />
@@ -195,23 +196,22 @@ export default function Clients() {
               }`}
             >
               {sent ? (
-                <><Check className="h-4 w-4" /> Verstuurd naar {clients.length} clients!</>
+                <><Check className="h-4 w-4" /> {t('broadcast_sent', { n: clients.length })}</>
               ) : sending ? (
-                'Versturen...'
+                t('sending')
               ) : (
-                <><Send className="h-4 w-4" /> Verstuur naar {clients.length} client{clients.length !== 1 ? 's' : ''}</>
+                <><Send className="h-4 w-4" /> {t('broadcast_send_btn', { n: clients.length, s: clients.length !== 1 ? 's' : '' })}</>
               )}
             </button>
           </form>
         </div>
 
-        {/* Recent broadcasts */}
         <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-5">
-          <h2 className="font-bold text-slate-900 text-sm mb-4">Recente berichten</h2>
+          <h2 className="font-bold text-slate-900 text-sm mb-4">{t('recent_messages')}</h2>
           {broadcasts.length === 0 ? (
             <div className="text-center py-8">
               <Megaphone className="h-8 w-8 text-slate-200 mx-auto mb-2" />
-              <p className="text-slate-400 text-sm">Nog geen berichten verstuurd</p>
+              <p className="text-slate-400 text-sm">{t('no_messages')}</p>
             </div>
           ) : (
             <div className="space-y-3">

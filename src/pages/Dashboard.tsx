@@ -1,16 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Users, Zap, ChevronRight, ClipboardList, Battery, Moon, AlertTriangle, TrendingDown } from 'lucide-react'
+import { Users, Zap, ChevronRight, ClipboardList, Battery, Moon, AlertTriangle, TrendingDown, BellRing, Bot, Send, ChevronDown, ChevronUp, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client, Program, CheckIn } from '../lib/types'
+import { useLanguage } from '../lib/LanguageContext'
 
 interface ChurnRisk {
   client: Client
-  score: number // 0-100, higher = more at risk
+  score: number
   level: 'low' | 'medium' | 'high'
-  reasons: string[]
-  suggestion: string
+  reasonKeys: string[]
+  reasonVars: Record<string, string | number>[]
+  suggestionKey: string
   daysSinceCheckIn: number | null
+}
+
+interface CheckInAlert {
+  client_id: string
+  client_name: string
+  energy: number | null
+  notes: string | null
+  reason: string
+  priority: 'hoog' | 'middel'
+}
+
+interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
 }
 
 function computeChurnRisk(client: Client, checkIns: CheckIn[]): ChurnRisk {
@@ -18,59 +34,66 @@ function computeChurnRisk(client: Client, checkIns: CheckIn[]): ChurnRisk {
     .filter(c => c.client_id === client.id)
     .sort((a, b) => new Date(b.submitted_at).getTime() - new Date(a.submitted_at).getTime())
 
-  const reasons: string[] = []
+  const reasonKeys: string[] = []
+  const reasonVars: Record<string, string | number>[] = []
   let score = 0
 
-  // Days since last check-in
   let daysSinceCheckIn: number | null = null
   if (clientCheckIns.length === 0) {
     score += 40
-    reasons.push('Nog nooit ingecheckt')
+    reasonKeys.push('churn_reason_never')
+    reasonVars.push({})
   } else {
     daysSinceCheckIn = Math.floor((Date.now() - new Date(clientCheckIns[0].submitted_at).getTime()) / 86400000)
-    if (daysSinceCheckIn > 21) { score += 40; reasons.push(`${daysSinceCheckIn} dagen geen check-in`) }
-    else if (daysSinceCheckIn > 10) { score += 20; reasons.push(`${daysSinceCheckIn} dagen geen check-in`) }
+    if (daysSinceCheckIn > 21) { score += 40; reasonKeys.push('churn_reason_no_checkin'); reasonVars.push({ n: daysSinceCheckIn }) }
+    else if (daysSinceCheckIn > 10) { score += 20; reasonKeys.push('churn_reason_no_checkin'); reasonVars.push({ n: daysSinceCheckIn }) }
   }
 
-  // Energy trend (last 3)
   if (clientCheckIns.length >= 3) {
     const [e1, e2, e3] = clientCheckIns.slice(0, 3).map(c => c.energy)
-    if (e1 < e2 && e2 < e3) { score += 25; reasons.push('Dalende energietrend') }
-    else if (e1 < 5) { score += 15; reasons.push('Lage energie bij laatste check-in') }
+    if (e1 < e2 && e2 < e3) { score += 25; reasonKeys.push('churn_reason_energy_down'); reasonVars.push({}) }
+    else if (e1 < 5) { score += 15; reasonKeys.push('churn_reason_low_energy'); reasonVars.push({}) }
   } else if (clientCheckIns.length === 1 && clientCheckIns[0].energy < 5) {
     score += 15
-    reasons.push('Lage energie bij laatste check-in')
+    reasonKeys.push('churn_reason_low_energy')
+    reasonVars.push({})
   }
 
-  // Few check-ins vs client age
   const clientAgeDays = Math.floor((Date.now() - new Date(client.created_at).getTime()) / 86400000)
   const expectedCheckIns = Math.floor(clientAgeDays / 7)
   if (expectedCheckIns > 2 && clientCheckIns.length < expectedCheckIns * 0.4) {
     score += 20
-    reasons.push('Weinig check-ins vergeleken met inschrijfduur')
+    reasonKeys.push('churn_reason_few_checkins')
+    reasonVars.push({})
   }
 
-  // Status
-  if (client.status === 'inactief') { score += 15; reasons.push('Status: inactief') }
+  if (client.status === 'inactief') { score += 15; reasonKeys.push('churn_reason_status_inactive'); reasonVars.push({}) }
 
   score = Math.min(score, 100)
   const level = score >= 50 ? 'high' : score >= 25 ? 'medium' : 'low'
+  const suggestionKey = level === 'high' ? 'churn_suggestion_high' : level === 'medium' ? 'churn_suggestion_medium' : 'churn_suggestion_low'
 
-  const suggestions: Record<string, string> = {
-    high: 'Neem direct contact op — stuur een persoonlijk bericht of bel om te vragen hoe het gaat.',
-    medium: 'Stuur een motiverende check-in reminder en vraag actief naar voortgang.',
-    low: 'Client is betrokken — houd momentum vast met positieve feedback.',
-  }
-
-  return { client, score, level, reasons, suggestion: suggestions[level], daysSinceCheckIn }
+  return { client, score, level, reasonKeys, reasonVars, suggestionKey, daysSinceCheckIn }
 }
 
 export default function Dashboard() {
+  const { t } = useLanguage()
   const [clients, setClients] = useState<Client[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
   const [checkIns, setCheckIns] = useState<CheckIn[]>([])
   const [coachName, setCoachName] = useState('')
   const [loading, setLoading] = useState(true)
+
+  const [checkinAlerts, setCheckinAlerts] = useState<CheckInAlert[]>([])
+  const [analyzingCheckins, setAnalyzingCheckins] = useState(false)
+  const [alertsLoaded, setAlertsLoaded] = useState(false)
+  const [alertsError, setAlertsError] = useState<string | null>(null)
+
+  const [assistantOpen, setAssistantOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const chatEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -91,6 +114,51 @@ export default function Dashboard() {
     load()
   }, [])
 
+  useEffect(() => {
+    if (assistantOpen) {
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [chatMessages, assistantOpen])
+
+  const handleAnalyzeCheckins = async () => {
+    setAnalyzingCheckins(true)
+    setAlertsError(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('analyze-checkins', {})
+      if (error) throw error
+      setCheckinAlerts(data?.alerts ?? [])
+      setAlertsLoaded(true)
+    } catch (err) {
+      setAlertsError(t('analyze_error'))
+      console.error(err)
+    } finally {
+      setAnalyzingCheckins(false)
+    }
+  }
+
+  const handleSendMessage = async () => {
+    const message = chatInput.trim()
+    if (!message || chatLoading) return
+
+    const newMessages: ChatMessage[] = [...chatMessages, { role: 'user', content: message }]
+    setChatMessages(newMessages)
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const { data, error } = await supabase.functions.invoke('coach-assistant', {
+        body: { message },
+      })
+      if (error) throw error
+      setChatMessages([...newMessages, { role: 'assistant', content: data?.reply ?? t('chat_no_reply') }])
+    } catch (err) {
+      setChatMessages([...newMessages, { role: 'assistant', content: t('chat_error_text') }])
+      console.error(err)
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
   const now = new Date()
   const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1)
   const thisWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
@@ -105,14 +173,12 @@ export default function Dashboard() {
     ? (avgSleep.reduce((s, c) => s + (c.sleep_hrs ?? 0), 0) / avgSleep.length).toFixed(1)
     : null
 
-  // Clients with low energy (last check-in < 5)
   const lowEnergyClients = clients.filter(client => {
     const clientCheckIns = checkIns.filter(c => c.client_id === client.id)
     if (!clientCheckIns.length) return false
     return clientCheckIns[0].energy < 5
   })
 
-  // Churn risk engine
   const churnRisks = clients
     .map(c => computeChurnRisk(c, checkIns))
     .filter(r => r.level !== 'low')
@@ -132,7 +198,7 @@ export default function Dashboard() {
   )
 
   const hour = now.getHours()
-  const greeting = hour < 12 ? 'Goedemorgen' : hour < 18 ? 'Goedemiddag' : 'Goedenavond'
+  const greeting = hour < 12 ? t('greeting_morning') : hour < 18 ? t('greeting_afternoon') : t('greeting_evening')
 
   return (
     <div className="p-8 max-w-6xl">
@@ -145,9 +211,30 @@ export default function Dashboard() {
       {/* Stats grid */}
       <div className="grid grid-cols-3 gap-4 mb-4">
         {[
-          { label: 'Actieve clients', value: clients.length, icon: Users, color: 'text-brand-600', bg: 'bg-brand-50', sub: clients.length === 1 ? '1 ingeschreven' : `${clients.length} ingeschreven` },
-          { label: "Programma's deze maand", value: programsThisMonth, icon: Zap, color: 'text-amber-600', bg: 'bg-amber-50', sub: `${programs.length} totaal gegenereerd` },
-          { label: 'Check-ins deze week', value: checkInsThisWeek, icon: ClipboardList, color: 'text-emerald-600', bg: 'bg-emerald-50', sub: `${checkIns.length} totaal ontvangen` },
+          {
+            label: t('stat_active_clients'),
+            value: clients.length,
+            icon: Users,
+            color: 'text-brand-600',
+            bg: 'bg-brand-50',
+            sub: clients.length === 1 ? t('stat_enrolled', { n: 1 }) : t('stat_enrolled', { n: clients.length }),
+          },
+          {
+            label: t('stat_programs_month'),
+            value: programsThisMonth,
+            icon: Zap,
+            color: 'text-amber-600',
+            bg: 'bg-amber-50',
+            sub: t('stat_total_generated', { n: programs.length }),
+          },
+          {
+            label: t('stat_checkins_week'),
+            value: checkInsThisWeek,
+            icon: ClipboardList,
+            color: 'text-emerald-600',
+            bg: 'bg-emerald-50',
+            sub: t('stat_total_received', { n: checkIns.length }),
+          },
         ].map(({ label, value, icon: Icon, color, bg, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
             <div className="flex items-center justify-between mb-3">
@@ -164,9 +251,30 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Gem. energieniveau', value: avgEnergy ? `${avgEnergy}/10` : '—', icon: Battery, color: avgEnergy && parseFloat(avgEnergy) >= 7 ? 'text-emerald-600' : avgEnergy && parseFloat(avgEnergy) >= 5 ? 'text-amber-600' : 'text-rose-600', bg: 'bg-slate-50', sub: 'Laatste 20 check-ins' },
-          { label: 'Gem. slaap', value: avgSleepVal ? `${avgSleepVal}u` : '—', icon: Moon, color: 'text-blue-600', bg: 'bg-blue-50/50', sub: 'Gemiddeld per nacht' },
-          { label: 'Aandacht nodig', value: lowEnergyClients.length, icon: AlertTriangle, color: lowEnergyClients.length > 0 ? 'text-rose-600' : 'text-slate-400', bg: lowEnergyClients.length > 0 ? 'bg-rose-50' : 'bg-slate-50', sub: 'Clients met lage energie' },
+          {
+            label: t('stat_avg_energy'),
+            value: avgEnergy ? `${avgEnergy}/10` : '—',
+            icon: Battery,
+            color: avgEnergy && parseFloat(avgEnergy) >= 7 ? 'text-emerald-600' : avgEnergy && parseFloat(avgEnergy) >= 5 ? 'text-amber-600' : 'text-rose-600',
+            bg: 'bg-slate-50',
+            sub: t('stat_last_checkins'),
+          },
+          {
+            label: t('stat_avg_sleep'),
+            value: avgSleepVal ? `${avgSleepVal}u` : '—',
+            icon: Moon,
+            color: 'text-blue-600',
+            bg: 'bg-blue-50/50',
+            sub: t('stat_avg_night'),
+          },
+          {
+            label: t('stat_needs_attention'),
+            value: lowEnergyClients.length,
+            icon: AlertTriangle,
+            color: lowEnergyClients.length > 0 ? 'text-rose-600' : 'text-slate-400',
+            bg: lowEnergyClients.length > 0 ? 'bg-rose-50' : 'bg-slate-50',
+            sub: t('stat_low_energy_sub'),
+          },
         ].map(({ label, value, icon: Icon, color, bg, sub }) => (
           <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
             <div className="flex items-center justify-between mb-3">
@@ -185,13 +293,13 @@ export default function Dashboard() {
         {/* Recent clients */}
         <div className="col-span-3 bg-white rounded-2xl border border-slate-100 shadow-card">
           <div className="flex items-center justify-between px-5 py-4 border-b border-slate-50">
-            <h2 className="font-bold text-slate-900 text-sm">Recente clients</h2>
-            <Link to="/clients" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors">Alle clients →</Link>
+            <h2 className="font-bold text-slate-900 text-sm">{t('recent_clients')}</h2>
+            <Link to="/clients" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors">{t('all_clients_link')}</Link>
           </div>
           {clients.length === 0 ? (
             <div className="px-5 py-12 text-center">
-              <p className="text-slate-400 text-sm mb-3">Nog geen clients</p>
-              <Link to="/clients" className="inline-flex items-center gap-1.5 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">Client toevoegen</Link>
+              <p className="text-slate-400 text-sm mb-3">{t('no_clients_yet')}</p>
+              <Link to="/clients" className="inline-flex items-center gap-1.5 bg-brand-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-brand-700 transition-colors">{t('add_client')}</Link>
             </div>
           ) : (
             <ul>
@@ -229,7 +337,7 @@ export default function Dashboard() {
         {/* Recent activity */}
         <div className="col-span-2 bg-white rounded-2xl border border-slate-100 shadow-card">
           <div className="px-5 py-4 border-b border-slate-50">
-            <h2 className="font-bold text-slate-900 text-sm">Recente activiteit</h2>
+            <h2 className="font-bold text-slate-900 text-sm">{t('recent_activity')}</h2>
           </div>
           <div className="p-4 space-y-2">
             {[
@@ -238,7 +346,7 @@ export default function Dashboard() {
                 date: new Date(c.submitted_at),
                 client_id: c.client_id,
                 energy: c.energy,
-                label: `Week ${c.week_number} check-in`,
+                label: t('week_checkin', { n: c.week_number }),
               })),
               ...programs.slice(0, 5).map(p => ({
                 type: 'program' as const,
@@ -267,7 +375,7 @@ export default function Dashboard() {
                 )
               })}
             {checkIns.length === 0 && programs.length === 0 && (
-              <p className="text-xs text-slate-400 text-center py-6">Nog geen activiteit</p>
+              <p className="text-xs text-slate-400 text-center py-6">{t('no_activity_yet')}</p>
             )}
           </div>
         </div>
@@ -278,9 +386,9 @@ export default function Dashboard() {
         <div className="mt-5 bg-rose-50 border border-rose-100 rounded-2xl p-5">
           <div className="flex items-center gap-2 mb-3">
             <AlertTriangle className="h-4 w-4 text-rose-500" />
-            <h3 className="font-bold text-rose-700 text-sm">Aandacht nodig</h3>
+            <h3 className="font-bold text-rose-700 text-sm">{t('attention_needed')}</h3>
           </div>
-          <p className="text-xs text-rose-600 mb-3">De volgende clients hebben een lage energie-score bij hun laatste check-in:</p>
+          <p className="text-xs text-rose-600 mb-3">{t('low_energy_desc')}</p>
           <div className="flex flex-wrap gap-2">
             {lowEnergyClients.map(client => (
               <Link key={client.id} to={`/clients/${client.id}`} className="flex items-center gap-2 bg-white border border-rose-100 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-700 hover:bg-rose-50 transition-colors">
@@ -299,8 +407,8 @@ export default function Dashboard() {
         <div className="mt-5 bg-white border border-slate-100 shadow-card rounded-2xl">
           <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-50">
             <TrendingDown className="h-4 w-4 text-amber-500" />
-            <h2 className="font-bold text-slate-900 text-sm">Churn Risico Radar</h2>
-            <span className="ml-auto text-xs text-slate-400 font-medium">AI-gedreven retentie</span>
+            <h2 className="font-bold text-slate-900 text-sm">{t('churn_radar')}</h2>
+            <span className="ml-auto text-xs text-slate-400 font-medium">{t('churn_ai_driven')}</span>
           </div>
           <div className="divide-y divide-slate-50">
             {churnRisks.map(risk => {
@@ -319,28 +427,25 @@ export default function Dashboard() {
                           {risk.client.full_name}
                         </Link>
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${riskColor.badge}`}>
-                          {risk.level === 'high' ? 'Hoog risico' : 'Matig risico'}
+                          {risk.level === 'high' ? t('churn_high_risk') : t('churn_medium_risk')}
                         </span>
                       </div>
-                      {/* Risk bar */}
                       <div className="flex items-center gap-2 mb-2">
                         <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                           <div className={`h-full rounded-full transition-all ${riskColor.bar}`} style={{ width: `${risk.score}%` }} />
                         </div>
                         <span className="text-xs text-slate-400 font-medium flex-shrink-0">{risk.score}%</span>
                       </div>
-                      {/* Reasons */}
                       <div className="flex flex-wrap gap-1 mb-2">
-                        {risk.reasons.map(r => (
-                          <span key={r} className="flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
+                        {risk.reasonKeys.map((key, idx) => (
+                          <span key={idx} className="flex items-center gap-1 text-xs text-slate-500 bg-slate-50 px-2 py-0.5 rounded-full">
                             <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${riskColor.dot}`} />
-                            {r}
+                            {t(key, risk.reasonVars[idx])}
                           </span>
                         ))}
                       </div>
-                      {/* AI suggestion */}
                       <p className="text-xs text-slate-600 bg-slate-50 px-3 py-2 rounded-xl leading-relaxed">
-                        <span className="font-semibold text-brand-600">Advies: </span>{risk.suggestion}
+                        <span className="font-semibold text-brand-600">{t('churn_advice_label')}</span>{t(risk.suggestionKey)}
                       </p>
                     </div>
                   </div>
@@ -350,6 +455,168 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* AI Check-in Signalen */}
+      <div className="mt-5 bg-white border border-slate-100 shadow-card rounded-2xl">
+        <div className="flex items-center gap-2 px-5 py-4 border-b border-slate-50">
+          <BellRing className="h-4 w-4 text-brand-600" />
+          <h2 className="font-bold text-slate-900 text-sm">{t('signals')}</h2>
+          <span className="ml-auto text-xs text-slate-400 font-medium">{t('ai_checkin_analysis')}</span>
+          <button
+            onClick={handleAnalyzeCheckins}
+            disabled={analyzingCheckins}
+            className="ml-3 inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {analyzingCheckins
+              ? <><Loader2 className="h-3 w-3 animate-spin" /> {t('analyzing')}</>
+              : t('analyze')}
+          </button>
+        </div>
+
+        <div className="p-5">
+          {!alertsLoaded && !analyzingCheckins && (
+            <p className="text-xs text-slate-400 text-center py-4">{t('analyze_hint')}</p>
+          )}
+
+          {analyzingCheckins && (
+            <div className="flex items-center justify-center gap-2 py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-brand-600" />
+              <p className="text-sm text-slate-500">{t('ai_analyzing_text')}</p>
+            </div>
+          )}
+
+          {alertsError && (
+            <p className="text-xs text-rose-600 text-center py-4">{alertsError}</p>
+          )}
+
+          {alertsLoaded && !analyzingCheckins && checkinAlerts.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-sm font-semibold text-emerald-600 mb-1">{t('all_good')}</p>
+              <p className="text-xs text-slate-400">{t('no_attention_needed')}</p>
+            </div>
+          )}
+
+          {alertsLoaded && checkinAlerts.length > 0 && (
+            <div className="space-y-3">
+              {checkinAlerts.map((alert, i) => (
+                <div
+                  key={alert.client_id + i}
+                  className={`flex items-start gap-3 p-4 rounded-xl border ${
+                    alert.priority === 'hoog' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'
+                  }`}
+                >
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5 ${
+                    alert.priority === 'hoog' ? 'bg-rose-500' : 'bg-amber-500'
+                  }`}>
+                    {alert.client_name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-bold text-slate-900">{alert.client_name}</span>
+                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                        alert.priority === 'hoog' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {alert.priority === 'hoog' ? t('high_priority') : t('medium_priority')}
+                      </span>
+                      {alert.energy !== null && (
+                        <span className="text-xs text-slate-500">{t('energy_label')}{alert.energy}/10</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-600 leading-relaxed">{alert.reason}</p>
+                    {alert.notes && (
+                      <p className="text-xs text-slate-400 mt-1 italic">"{alert.notes}"</p>
+                    )}
+                  </div>
+                  <Link
+                    to={`/clients/${alert.client_id}`}
+                    className={`flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors ${
+                      alert.priority === 'hoog'
+                        ? 'bg-rose-100 text-rose-700 hover:bg-rose-200'
+                        : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                    }`}
+                  >
+                    {t('view_client')}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Coach Assistent */}
+      <div className="mt-5 bg-white border border-slate-100 shadow-card rounded-2xl">
+        <button
+          onClick={() => setAssistantOpen(o => !o)}
+          className="w-full flex items-center gap-2 px-5 py-4 hover:bg-slate-50/60 transition-colors rounded-2xl"
+        >
+          <Bot className="h-4 w-4 text-brand-600" />
+          <h2 className="font-bold text-slate-900 text-sm">{t('coach_assistant')}</h2>
+          <span className="text-xs text-slate-400 font-medium ml-1">{t('ask_ai_assistant')}</span>
+          <span className="ml-auto">
+            {assistantOpen
+              ? <ChevronUp className="h-4 w-4 text-slate-400" />
+              : <ChevronDown className="h-4 w-4 text-slate-400" />}
+          </span>
+        </button>
+
+        {assistantOpen && (
+          <div className="border-t border-slate-50">
+            <div className="px-5 pt-4 pb-2 space-y-3 max-h-80 overflow-y-auto">
+              {chatMessages.length === 0 && (
+                <p className="text-xs text-slate-400 text-center py-4">{t('chat_hint_text')}</p>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  {msg.role === 'assistant' && (
+                    <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                      <Bot className="h-3 w-3 text-white" />
+                    </div>
+                  )}
+                  <div className={`max-w-[75%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+                    msg.role === 'user' ? 'bg-slate-800 text-white rounded-br-sm' : 'bg-brand-50 text-slate-800 rounded-bl-sm'
+                  }`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="w-6 h-6 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 mr-2 mt-0.5">
+                    <Bot className="h-3 w-3 text-white" />
+                  </div>
+                  <div className="bg-brand-50 px-3.5 py-2.5 rounded-2xl rounded-bl-sm">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-600" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="px-5 pb-5 pt-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={chatInput}
+                  onChange={e => setChatInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSendMessage() } }}
+                  placeholder={t('chat_placeholder')}
+                  disabled={chatLoading}
+                  className="flex-1 text-xs px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 placeholder-slate-400 disabled:opacity-50 transition-all"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  disabled={!chatInput.trim() || chatLoading}
+                  className="inline-flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold px-3.5 py-2.5 rounded-xl transition-colors"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                  {t('send')}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

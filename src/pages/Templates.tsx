@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BookTemplate, Trash2, Zap, Users, Loader2 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client } from '../lib/types'
+import { useLanguage } from '../lib/LanguageContext'
 
 interface Template {
   id: string
@@ -13,6 +14,7 @@ interface Template {
 }
 
 export default function Templates() {
+  const { t } = useLanguage()
   const [templates, setTemplates] = useState<Template[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -69,7 +71,7 @@ export default function Templates() {
     await supabase.from('programs').insert(inserts)
     setAssigning(null)
     setSelectedClients(prev => ({ ...prev, [template.id]: [] }))
-    setSuccess(`Programma toegewezen aan ${clientIds.length} client${clientIds.length !== 1 ? 's' : ''}`)
+    setSuccess(t('assigned_success', { n: clientIds.length, s: clientIds.length !== 1 ? 's' : '' }))
     setTimeout(() => setSuccess(null), 3000)
   }
 
@@ -82,8 +84,8 @@ export default function Templates() {
   return (
     <div className="p-8 max-w-4xl">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900">Programma templates</h1>
-        <p className="text-slate-400 text-sm mt-0.5">Hergebruik opgeslagen programma's en wijs ze toe aan meerdere clients</p>
+        <h1 className="text-2xl font-bold text-slate-900">{t('templates_title')}</h1>
+        <p className="text-slate-400 text-sm mt-0.5">{t('templates_desc')}</p>
       </div>
 
       {success && (
@@ -95,8 +97,8 @@ export default function Templates() {
       {templates.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card px-6 py-12 text-center">
           <BookTemplate className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm mb-2">Nog geen templates opgeslagen.</p>
-          <p className="text-xs text-slate-300">Ga naar een client → Overzicht → klik "Template" op een programma om het op te slaan.</p>
+          <p className="text-slate-400 text-sm mb-2">{t('templates_empty_title')}</p>
+          <p className="text-xs text-slate-300">{t('templates_empty_hint')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -110,7 +112,7 @@ export default function Templates() {
                   <div>
                     <h3 className="font-bold text-slate-900">{template.title}</h3>
                     <p className="text-xs text-slate-400 mt-1">
-                      {template.weeks} weken · {daysCount} dagen/week · Opgeslagen {new Date(template.created_at).toLocaleDateString('nl-NL')}
+                      {t('template_meta', { weeks: template.weeks, days: daysCount, date: new Date(template.created_at).toLocaleDateString('nl-NL') })}
                     </p>
                   </div>
                   <button onClick={() => deleteTemplate(template.id)}
@@ -119,10 +121,9 @@ export default function Templates() {
                   </button>
                 </div>
 
-                {/* Client selection */}
                 <div>
                   <p className="text-xs font-semibold text-slate-500 mb-2 flex items-center gap-1.5">
-                    <Users className="h-3.5 w-3.5" /> Toewijzen aan clients:
+                    <Users className="h-3.5 w-3.5" /> {t('assign_to_clients')}
                   </p>
                   <div className="flex flex-wrap gap-2 mb-3">
                     {clients.map(client => (
@@ -138,12 +139,14 @@ export default function Templates() {
                         {client.full_name.split(' ')[0]}
                       </button>
                     ))}
-                    {clients.length === 0 && <p className="text-xs text-slate-300">Geen actieve clients</p>}
+                    {clients.length === 0 && <p className="text-xs text-slate-300">{t('no_active_clients_tpl')}</p>}
                   </div>
                   <button onClick={() => assignToClients(template)} disabled={sel.length === 0 || assigning === template.id}
                     className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors disabled:opacity-40">
                     {assigning === template.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4" />}
-                    {sel.length > 0 ? `Toewijzen aan ${sel.length} client${sel.length !== 1 ? 's' : ''}` : 'Selecteer clients'}
+                    {sel.length > 0
+                      ? t('assign_btn', { n: sel.length, s: sel.length !== 1 ? 's' : '' })
+                      : t('select_clients_btn')}
                   </button>
                 </div>
               </div>

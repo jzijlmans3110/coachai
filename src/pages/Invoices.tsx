@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Plus, CheckCircle2, Clock, AlertCircle, Trash2, Euro } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client } from '../lib/types'
+import { useLanguage } from '../lib/LanguageContext'
 
 interface Invoice {
   id: string
@@ -16,6 +17,7 @@ interface Invoice {
 }
 
 export default function Invoices() {
+  const { t } = useLanguage()
   const [invoices, setInvoices] = useState<Invoice[]>([])
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,10 +72,10 @@ export default function Invoices() {
   }
 
   const statusBadge = (status: string) => ({
-    open: { bg: 'bg-amber-50', text: 'text-amber-700', label: 'Open', icon: <Clock className="h-3 w-3" /> },
-    betaald: { bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'Betaald', icon: <CheckCircle2 className="h-3 w-3" /> },
-    verlopen: { bg: 'bg-rose-50', text: 'text-rose-700', label: 'Verlopen', icon: <AlertCircle className="h-3 w-3" /> },
-  }[status] ?? { bg: 'bg-slate-50', text: 'text-slate-600', label: status, icon: null })
+    open:     { bg: 'bg-amber-50',   text: 'text-amber-700',   labelKey: 'invoice_status_open',    icon: <Clock className="h-3 w-3" /> },
+    betaald:  { bg: 'bg-emerald-50', text: 'text-emerald-700', labelKey: 'invoice_status_paid',    icon: <CheckCircle2 className="h-3 w-3" /> },
+    verlopen: { bg: 'bg-rose-50',    text: 'text-rose-700',    labelKey: 'invoice_status_expired', icon: <AlertCircle className="h-3 w-3" /> },
+  }[status] ?? { bg: 'bg-slate-50', text: 'text-slate-600', labelKey: status, icon: null })
 
   const fmt = (cents: number) => `€${(cents / 100).toFixed(2).replace('.', ',')}`
 
@@ -92,25 +94,25 @@ export default function Invoices() {
     <div className="p-8 max-w-4xl">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Facturen</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Beheer betalingen van je clients</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('invoices_title')}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{t('invoices_desc')}</p>
         </div>
         <button onClick={() => setShowForm(!showForm)}
           className="flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2.5 rounded-xl transition-colors">
-          <Plus className="h-4 w-4" /> Factuur aanmaken
+          <Plus className="h-4 w-4" /> {t('create_invoice')}
         </button>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-6">
         {[
-          { label: 'Openstaand', value: fmt(totalOpen), color: 'text-amber-600', bg: 'bg-amber-50', icon: <Clock className="h-4 w-4" /> },
-          { label: 'Ontvangen', value: fmt(totalPaid), color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <CheckCircle2 className="h-4 w-4" /> },
-          { label: 'Totaal facturen', value: invoices.length.toString(), color: 'text-brand-600', bg: 'bg-brand-50', icon: <Euro className="h-4 w-4" /> },
-        ].map(({ label, value, color, bg, icon }) => (
-          <div key={label} className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
+          { labelKey: 'stat_outstanding', value: fmt(totalOpen),          color: 'text-amber-600',   bg: 'bg-amber-50',   icon: <Clock className="h-4 w-4" /> },
+          { labelKey: 'stat_received',    value: fmt(totalPaid),          color: 'text-emerald-600', bg: 'bg-emerald-50', icon: <CheckCircle2 className="h-4 w-4" /> },
+          { labelKey: 'stat_total_invoices', value: invoices.length.toString(), color: 'text-brand-600', bg: 'bg-brand-50', icon: <Euro className="h-4 w-4" /> },
+        ].map(({ labelKey, value, color, bg, icon }) => (
+          <div key={labelKey} className="bg-white rounded-2xl border border-slate-100 shadow-card p-5">
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{label}</p>
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">{t(labelKey)}</p>
               <div className={`${bg} rounded-xl p-2 ${color}`}>{icon}</div>
             </div>
             <p className={`text-2xl font-bold ${color}`}>{value}</p>
@@ -121,31 +123,31 @@ export default function Invoices() {
       {/* Form */}
       {showForm && (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card p-5 mb-5">
-          <h3 className="font-bold text-slate-900 text-sm mb-4">Nieuwe factuur</h3>
+          <h3 className="font-bold text-slate-900 text-sm mb-4">{t('new_invoice_title')}</h3>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1">Client</label>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">{t('label_client')}</label>
               <select value={form.client_id} onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))} className={inputCls}>
-                <option value="">Geen client / losse factuur</option>
+                <option value="">{t('no_client_opt')}</option>
                 {clients.map(c => <option key={c.id} value={c.id}>{c.full_name}</option>)}
               </select>
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1">Bedrag (€)</label>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">{t('label_amount')}</label>
               <input type="number" step="0.01" placeholder="89.00" value={form.amount} onChange={e => setForm(f => ({ ...f, amount: e.target.value }))} className={inputCls} />
             </div>
             <div className="col-span-2">
-              <label className="text-xs font-semibold text-slate-500 block mb-1">Omschrijving</label>
-              <input type="text" placeholder="Bijv. Personal training 1 maand, Programma pakket..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} />
+              <label className="text-xs font-semibold text-slate-500 block mb-1">{t('label_description_inv')}</label>
+              <input type="text" placeholder={t('description_inv_placeholder')} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} className={inputCls} />
             </div>
             <div>
-              <label className="text-xs font-semibold text-slate-500 block mb-1">Vervaldatum</label>
+              <label className="text-xs font-semibold text-slate-500 block mb-1">{t('label_due_date')}</label>
               <input type="date" value={form.due_date} onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))} className={inputCls} />
             </div>
           </div>
           <div className="flex gap-2">
-            <button onClick={createInvoice} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">Aanmaken</button>
-            <button onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl transition-colors">Annuleren</button>
+            <button onClick={createInvoice} className="bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-colors">{t('create_btn')}</button>
+            <button onClick={() => setShowForm(false)} className="text-sm text-slate-500 hover:text-slate-700 px-4 py-2 rounded-xl transition-colors">{t('cancel')}</button>
           </div>
         </div>
       )}
@@ -154,14 +156,14 @@ export default function Invoices() {
       {invoices.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card px-6 py-10 text-center">
           <Euro className="h-8 w-8 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Nog geen facturen. Maak je eerste factuur aan.</p>
+          <p className="text-slate-400 text-sm">{t('no_invoices')}</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card overflow-hidden">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100">
-                {['Client', 'Omschrijving', 'Bedrag', 'Vervaldatum', 'Status', ''].map(h => (
+                {[t('col_client'), t('col_description'), t('col_amount'), t('col_due_date'), t('col_status'), ''].map(h => (
                   <th key={h} className="text-left text-xs font-semibold text-slate-400 px-4 py-3">{h}</th>
                 ))}
               </tr>
@@ -183,7 +185,7 @@ export default function Invoices() {
                     </td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full ${badge.bg} ${badge.text}`}>
-                        {badge.icon}{badge.label}
+                        {badge.icon}{t(badge.labelKey)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -191,7 +193,7 @@ export default function Invoices() {
                         {inv.status === 'open' && (
                           <button onClick={() => markPaid(inv.id)}
                             className="text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2 py-1 rounded-lg transition-colors">
-                            Markeer betaald
+                            {t('mark_paid')}
                           </button>
                         )}
                         <button onClick={() => deleteInvoice(inv.id)} className="text-slate-300 hover:text-rose-400 transition-colors">

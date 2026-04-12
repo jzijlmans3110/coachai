@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Trophy, Plus, Users, Calendar, Target, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Challenge, ChallengeEntry, Client } from '../lib/types'
+import { useLanguage } from '../lib/LanguageContext'
 
 interface LeaderboardEntry {
   client: Client
@@ -10,6 +11,7 @@ interface LeaderboardEntry {
 }
 
 export default function Challenges() {
+  const { t } = useLanguage()
   const [challenges, setChallenges] = useState<Challenge[]>([])
   const [entries, setEntries] = useState<ChallengeEntry[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -27,9 +29,7 @@ export default function Challenges() {
     end_date: '',
   })
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
   const load = async () => {
     const { data: { user } } = await supabase.auth.getUser()
@@ -39,7 +39,6 @@ export default function Challenges() {
       supabase.from('clients').select('*').eq('coach_id', user.id),
     ])
     const challengeIds = (ch ?? []).map(c => c.id)
-    // Only fetch entries for this coach's challenges (security fix)
     const { data: en } = challengeIds.length > 0
       ? await supabase.from('challenge_entries').select('*').in('challenge_id', challengeIds)
       : { data: [] }
@@ -99,7 +98,6 @@ export default function Challenges() {
   }
 
   const daysLeft = (end: string) => {
-    // Use end-of-day to avoid UTC midnight timezone issues
     const endMs = new Date(end + 'T23:59:59').getTime()
     return Math.ceil((endMs - Date.now()) / 86400000)
   }
@@ -112,65 +110,63 @@ export default function Challenges() {
 
   return (
     <div className="p-6 md:p-8 max-w-4xl">
-      {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Groepsuitdagingen</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Motiveer clients met onderlinge competitie</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('challenges_title')}</h1>
+          <p className="text-sm text-slate-400 mt-0.5">{t('challenges_desc')}</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
           className="flex items-center gap-2 bg-brand-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-brand-700 transition-colors"
         >
           <Plus className="h-4 w-4" />
-          Nieuwe uitdaging
+          {t('new_challenge')}
         </button>
       </div>
 
-      {/* Create form */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
-              <h2 className="font-bold text-slate-900">Nieuwe uitdaging</h2>
+              <h2 className="font-bold text-slate-900">{t('challenge_form_header')}</h2>
               <button onClick={() => setShowForm(false)} className="p-1.5 hover:bg-slate-100 rounded-lg transition-colors">
                 <X className="h-4 w-4 text-slate-500" />
               </button>
             </div>
             <form onSubmit={handleCreate} className="p-6 space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Titel *</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_title_req')}</label>
                 <input
                   required
                   value={form.title}
                   onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-                  placeholder="bijv. 30-daagse stap challenge"
+                  placeholder={t('challenge_title_placeholder')}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
                 />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5">Beschrijving</label>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_description_ch')}</label>
                 <textarea
                   value={form.description}
                   onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                  placeholder="Optionele uitleg voor de clients..."
+                  placeholder={t('description_hint')}
                   rows={2}
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400 resize-none"
                 />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Meeteenheid *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_metric')}</label>
                   <input
                     required
                     value={form.metric}
                     onChange={e => setForm(f => ({ ...f, metric: e.target.value }))}
-                    placeholder="bijv. kg, km, stappen"
+                    placeholder={t('metric_placeholder')}
                     className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/30 focus:border-brand-400"
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Doel *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_target_ch')}</label>
                   <input
                     required
                     type="number"
@@ -185,7 +181,7 @@ export default function Challenges() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Startdatum *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_startdate')}</label>
                   <input
                     required
                     type="date"
@@ -195,7 +191,7 @@ export default function Challenges() {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">Einddatum *</label>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5">{t('label_enddate')}</label>
                   <input
                     required
                     type="date"
@@ -207,10 +203,10 @@ export default function Challenges() {
               </div>
               <div className="flex gap-2 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="flex-1 border border-slate-200 text-slate-600 text-sm font-semibold py-2.5 rounded-xl hover:bg-slate-50 transition-colors">
-                  Annuleren
+                  {t('cancel')}
                 </button>
                 <button type="submit" disabled={saving} className="flex-1 bg-brand-600 text-white text-sm font-semibold py-2.5 rounded-xl hover:bg-brand-700 transition-colors disabled:opacity-50">
-                  {saving ? 'Aanmaken...' : 'Aanmaken'}
+                  {saving ? t('challenge_creating') : t('challenge_create_btn')}
                 </button>
               </div>
             </form>
@@ -218,12 +214,11 @@ export default function Challenges() {
         </div>
       )}
 
-      {/* Challenge list */}
       {challenges.length === 0 ? (
         <div className="bg-white border border-slate-100 rounded-2xl shadow-card p-12 text-center">
           <Trophy className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-500 font-medium mb-1">Nog geen uitdagingen</p>
-          <p className="text-slate-400 text-sm">Maak een groepsuitdaging aan om clients te motiveren.</p>
+          <p className="text-slate-500 font-medium mb-1">{t('no_challenges')}</p>
+          <p className="text-slate-400 text-sm">{t('no_challenges_desc')}</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -235,7 +230,6 @@ export default function Challenges() {
 
             return (
               <div key={challenge.id} className="bg-white border border-slate-100 rounded-2xl shadow-card overflow-hidden">
-                {/* Challenge header */}
                 <div
                   className="flex items-start gap-4 px-5 py-4 cursor-pointer hover:bg-slate-50/60 transition-colors"
                   onClick={() => setExpandedId(isExpanded ? null : challenge.id)}
@@ -247,19 +241,19 @@ export default function Challenges() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-bold text-slate-900 text-sm">{challenge.title}</h3>
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${challenge.active ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60' : 'bg-slate-100 text-slate-500'}`}>
-                        {challenge.active ? 'Actief' : 'Inactief'}
+                        {challenge.active ? t('challenge_active') : t('challenge_inactive')}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 mt-1 flex-wrap">
                       <span className="flex items-center gap-1 text-xs text-slate-400">
-                        <Target className="h-3 w-3" /> Doel: {challenge.target} {challenge.metric}
+                        <Target className="h-3 w-3" /> {t('goal_label', { target: challenge.target, metric: challenge.metric })}
                       </span>
                       <span className="flex items-center gap-1 text-xs text-slate-400">
-                        <Users className="h-3 w-3" /> {leaderboard.filter(l => l.entry).length} deelnemers
+                        <Users className="h-3 w-3" /> {t('participants', { n: leaderboard.filter(l => l.entry).length })}
                       </span>
                       <span className="flex items-center gap-1 text-xs text-slate-400">
                         <Calendar className="h-3 w-3" />
-                        {days > 0 ? `${days} dagen over` : days === 0 ? 'Eindigt vandaag' : 'Afgelopen'}
+                        {days > 0 ? t('days_left', { n: days }) : days === 0 ? t('ends_today') : t('ended')}
                       </span>
                       {topEntry && (
                         <span className="flex items-center gap-1 text-xs font-semibold text-amber-600">
@@ -271,16 +265,15 @@ export default function Challenges() {
                   {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400 flex-shrink-0 mt-1" /> : <ChevronDown className="h-4 w-4 text-slate-400 flex-shrink-0 mt-1" />}
                 </div>
 
-                {/* Leaderboard (expanded) */}
                 {isExpanded && (
                   <div className="border-t border-slate-50">
                     {challenge.description && (
                       <p className="px-5 py-3 text-xs text-slate-500 bg-slate-50/50">{challenge.description}</p>
                     )}
                     <div className="px-5 py-3">
-                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">Ranglijst</p>
+                      <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-3">{t('leaderboard')}</p>
                       {leaderboard.length === 0 ? (
-                        <p className="text-xs text-slate-400">Nog geen deelnemers.</p>
+                        <p className="text-xs text-slate-400">{t('no_participants')}</p>
                       ) : (
                         <div className="space-y-2">
                           {leaderboard.map(({ client, entry, rank }) => {
@@ -310,19 +303,18 @@ export default function Challenges() {
                         </div>
                       )}
                     </div>
-                    {/* Actions */}
                     <div className="flex items-center gap-2 px-5 py-3 border-t border-slate-50">
                       <button
                         onClick={() => handleToggleActive(challenge)}
                         className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors px-3 py-1.5 rounded-lg hover:bg-slate-100"
                       >
-                        {challenge.active ? 'Deactiveren' : 'Activeren'}
+                        {challenge.active ? t('deactivate') : t('activate')}
                       </button>
                       <button
                         onClick={() => handleDelete(challenge.id)}
                         className="text-xs font-semibold text-rose-500 hover:text-rose-700 transition-colors px-3 py-1.5 rounded-lg hover:bg-rose-50 ml-auto"
                       >
-                        Verwijderen
+                        {t('remove_challenge')}
                       </button>
                     </div>
                   </div>

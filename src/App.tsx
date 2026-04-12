@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './lib/supabase'
+import { LanguageProvider } from './lib/LanguageContext'
 import Auth from './pages/Auth'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
@@ -16,6 +17,7 @@ import Challenges from './pages/Challenges'
 import Business from './pages/Business'
 import Intake from './pages/Intake'
 import Portal from './pages/Portal'
+import Waitlist from './pages/Waitlist'
 import Layout from './components/Layout'
 
 function ProtectedRoute({ session, children }: { session: Session | null; children: React.ReactNode }) {
@@ -43,6 +45,7 @@ export default function App() {
   }
 
   return (
+    <LanguageProvider>
     <BrowserRouter>
       <Routes>
         {/* Public routes */}
@@ -62,6 +65,7 @@ export default function App() {
                   <Route path="/clients" element={<Clients />} />
                   <Route path="/clients/:id" element={<ClientDetail />} />
                   <Route path="/pipeline" element={<Pipeline />} />
+                  <Route path="/waitlist" element={<Waitlist />} />
                   <Route path="/calendar" element={<Calendar />} />
                   <Route path="/templates" element={<Templates />} />
                   <Route path="/invoices" element={<Invoices />} />
@@ -76,5 +80,6 @@ export default function App() {
         />
       </Routes>
     </BrowserRouter>
+    </LanguageProvider>
   )
 }

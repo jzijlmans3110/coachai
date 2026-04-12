@@ -1,35 +1,37 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
-import { LayoutDashboard, Users, Settings, LogOut, Zap, Kanban, Calendar, BookTemplate, Receipt, Trophy, BarChart2 } from 'lucide-react'
+import { LayoutDashboard, Users, Settings, LogOut, Zap, Kanban, Calendar, BookTemplate, Receipt, Trophy, BarChart2, UserPlus } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useLanguage } from '../lib/LanguageContext'
 
 interface LayoutProps {
   session: Session
   children: React.ReactNode
 }
 
-const navItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/clients', icon: Users, label: 'Clients' },
-  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
-  { to: '/calendar', icon: Calendar, label: 'Kalender' },
-  { to: '/challenges', icon: Trophy, label: 'Challenges' },
-  { to: '/templates', icon: BookTemplate, label: 'Templates' },
-  { to: '/invoices', icon: Receipt, label: 'Facturen' },
-  { to: '/business', icon: BarChart2, label: 'Business' },
-  { to: '/settings', icon: Settings, label: 'Instellingen' },
-]
-
-// Bottom nav shows only the 4 most important items on mobile
-const bottomNavItems = [
-  { to: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/clients', icon: Users, label: 'Clients' },
-  { to: '/pipeline', icon: Kanban, label: 'Pipeline' },
-  { to: '/calendar', icon: Calendar, label: 'Kalender' },
-]
-
 export default function Layout({ children }: LayoutProps) {
   const navigate = useNavigate()
+  const { t } = useLanguage()
+
+  const navItems = [
+    { to: '/dashboard', icon: LayoutDashboard, labelKey: 'nav_dashboard' },
+    { to: '/clients', icon: Users, labelKey: 'nav_clients' },
+    { to: '/pipeline', icon: Kanban, labelKey: 'nav_pipeline' },
+    { to: '/waitlist', icon: UserPlus, labelKey: 'nav_waitlist' },
+    { to: '/calendar', icon: Calendar, labelKey: 'nav_calendar' },
+    { to: '/challenges', icon: Trophy, labelKey: 'nav_challenges' },
+    { to: '/templates', icon: BookTemplate, labelKey: 'nav_templates' },
+    { to: '/invoices', icon: Receipt, labelKey: 'nav_invoices' },
+    { to: '/business', icon: BarChart2, labelKey: 'nav_business' },
+    { to: '/settings', icon: Settings, labelKey: 'nav_settings' },
+  ]
+
+  const bottomNavItems = [
+    { to: '/dashboard', icon: LayoutDashboard, labelKey: 'nav_dashboard' },
+    { to: '/clients', icon: Users, labelKey: 'nav_clients' },
+    { to: '/pipeline', icon: Kanban, labelKey: 'nav_pipeline' },
+    { to: '/calendar', icon: Calendar, labelKey: 'nav_calendar' },
+  ]
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
@@ -55,7 +57,7 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Nav */}
         <nav className="flex-1 px-3 space-y-0.5">
-          {navItems.map(({ to, icon: Icon, label }) => (
+          {navItems.map(({ to, icon: Icon, labelKey }) => (
             <NavLink
               key={to}
               to={to}
@@ -68,7 +70,7 @@ export default function Layout({ children }: LayoutProps) {
               }
             >
               <Icon className="h-4 w-4 flex-shrink-0" />
-              {label}
+              {t(labelKey)}
             </NavLink>
           ))}
         </nav>
@@ -81,7 +83,7 @@ export default function Layout({ children }: LayoutProps) {
             className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-400 hover:bg-white/5 hover:text-slate-200 transition-all w-full"
           >
             <LogOut className="h-4 w-4" />
-            Uitloggen
+            {t('nav_signout')}
           </button>
         </div>
       </aside>
@@ -108,7 +110,7 @@ export default function Layout({ children }: LayoutProps) {
 
       {/* Bottom nav — mobile only */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-10 bg-sidebar border-t border-white/5 flex" style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}>
-        {bottomNavItems.map(({ to, icon: Icon, label }) => (
+        {bottomNavItems.map(({ to, icon: Icon, labelKey }) => (
           <NavLink
             key={to}
             to={to}
@@ -123,12 +125,12 @@ export default function Layout({ children }: LayoutProps) {
                 <div className={`p-1.5 rounded-lg transition-all ${isActive ? 'bg-white/10' : ''}`}>
                   <Icon className="h-5 w-5" />
                 </div>
-                <span>{label}</span>
+                <span>{t(labelKey)}</span>
               </>
             )}
           </NavLink>
         ))}
-        {/* More button that links to invoices/templates via settings */}
+        {/* More button that links to invoices */}
         <NavLink
           to="/invoices"
           className={({ isActive }) =>
@@ -142,7 +144,7 @@ export default function Layout({ children }: LayoutProps) {
               <div className={`p-1.5 rounded-lg transition-all ${isActive ? 'bg-white/10' : ''}`}>
                 <Receipt className="h-5 w-5" />
               </div>
-              <span>Facturen</span>
+              <span>{t('nav_invoices')}</span>
             </>
           )}
         </NavLink>

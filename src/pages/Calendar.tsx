@@ -3,11 +3,13 @@ import { Link } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Users } from 'lucide-react'
 import { supabase } from '../lib/supabase'
 import type { Client } from '../lib/types'
+import { useLanguage } from '../lib/LanguageContext'
 
+// Keep Dutch day names for DB matching (stored as Dutch strings)
 const DAYS_NL = ['Maandag', 'Dinsdag', 'Woensdag', 'Donderdag', 'Vrijdag', 'Zaterdag', 'Zondag']
-const DAYS_SHORT = ['Ma', 'Di', 'Wo', 'Do', 'Vr', 'Za', 'Zo']
 
 export default function Calendar() {
+  const { t } = useLanguage()
   const [clients, setClients] = useState<Client[]>([])
   const [loading, setLoading] = useState(true)
   const [weekOffset, setWeekOffset] = useState(0)
@@ -23,7 +25,6 @@ export default function Calendar() {
     load()
   }, [])
 
-  // Get the monday of the current week + offset
   const getWeekDates = () => {
     const now = new Date()
     const day = now.getDay()
@@ -40,7 +41,6 @@ export default function Calendar() {
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  // Clients who train on a given day name
   const clientsForDay = (dayName: string) => {
     return clients.filter(c => {
       const td = (c.training_days ?? []) as string[]
@@ -48,12 +48,10 @@ export default function Calendar() {
     })
   }
 
-  // Clients with no training days set — show based on days_per_week pattern
   const getAutoClients = (dayIndex: number) => {
     return clients.filter(c => {
       const td = (c.training_days ?? []) as string[]
       if (td.length > 0) return false
-      // Auto-assign based on days_per_week: spread evenly
       const patterns: Record<number, number[]> = {
         1: [0], 2: [0, 3], 3: [0, 2, 4], 4: [0, 1, 3, 4], 5: [0, 1, 2, 3, 4],
         6: [0, 1, 2, 3, 4, 5], 7: [0, 1, 2, 3, 4, 5, 6],
@@ -85,8 +83,8 @@ export default function Calendar() {
     <div className="p-8">
       <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Kalender</h1>
-          <p className="text-slate-400 text-sm mt-0.5">Trainingsoverzicht per dag</p>
+          <h1 className="text-2xl font-bold text-slate-900">{t('calendar_title')}</h1>
+          <p className="text-slate-400 text-sm mt-0.5">{t('calendar_desc')}</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1">
@@ -94,7 +92,7 @@ export default function Calendar() {
               <ChevronLeft className="h-4 w-4 text-slate-500" />
             </button>
             <button onClick={() => setWeekOffset(0)} className="px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50 rounded-lg transition-colors">
-              Vandaag
+              {t('today_btn')}
             </button>
             <button onClick={() => setWeekOffset(w => w + 1)} className="p-1.5 hover:bg-slate-50 rounded-lg transition-colors">
               <ChevronRight className="h-4 w-4 text-slate-500" />
@@ -107,7 +105,7 @@ export default function Calendar() {
       {clients.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-card px-6 py-12 text-center">
           <Users className="h-10 w-10 text-slate-200 mx-auto mb-3" />
-          <p className="text-slate-400 text-sm">Geen actieve clients. Voeg clients toe en stel trainingsdagen in.</p>
+          <p className="text-slate-400 text-sm">{t('no_active_clients_cal')}</p>
         </div>
       ) : (
         <div className="grid grid-cols-7 gap-3">
@@ -121,9 +119,8 @@ export default function Calendar() {
 
             return (
               <div key={i} className={`rounded-2xl border transition-all ${isToday ? 'border-brand-300 bg-brand-50/30 shadow-card' : isPast ? 'border-slate-100 bg-slate-50/50 opacity-70' : 'border-slate-100 bg-white shadow-sm'}`}>
-                {/* Day header */}
                 <div className={`px-3 py-3 text-center border-b ${isToday ? 'border-brand-200' : 'border-slate-100'}`}>
-                  <p className={`text-xs font-semibold ${isToday ? 'text-brand-600' : 'text-slate-400'}`}>{DAYS_SHORT[i]}</p>
+                  <p className={`text-xs font-semibold ${isToday ? 'text-brand-600' : 'text-slate-400'}`}>{t(`days_short_${i}`)}</p>
                   <p className={`text-lg font-bold mt-0.5 ${isToday ? 'text-brand-600' : isPast ? 'text-slate-400' : 'text-slate-900'}`}>{date.getDate()}</p>
                   {allClients.length > 0 && (
                     <span className={`text-xs font-bold px-2 py-0.5 rounded-full mt-1 inline-block ${isToday ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
@@ -132,7 +129,6 @@ export default function Calendar() {
                   )}
                 </div>
 
-                {/* Clients */}
                 <div className="p-2 space-y-1.5 min-h-[120px]">
                   {allClients.map(client => (
                     <Link key={client.id} to={`/clients/${client.id}`}
@@ -160,18 +156,17 @@ export default function Calendar() {
         </div>
       )}
 
-      {/* Legend */}
       <div className="mt-5 bg-white border border-slate-100 rounded-2xl p-4 flex items-center gap-6">
-        <p className="text-xs font-semibold text-slate-400">Legenda:</p>
+        <p className="text-xs font-semibold text-slate-400">{t('legend_label')}</p>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-brand-600" />
-          <span className="text-xs text-slate-600">Vandaag</span>
+          <span className="text-xs text-slate-600">{t('legend_today')}</span>
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded bg-slate-200" />
-          <span className="text-xs text-slate-600">Verleden</span>
+          <span className="text-xs text-slate-600">{t('legend_past')}</span>
         </div>
-        <p className="text-xs text-slate-400 ml-2">* Clients zonder vaste trainingsdagen worden automatisch verdeeld op basis van {'"'}dagen per week{'"'}</p>
+        <p className="text-xs text-slate-400 ml-2">{t('legend_note')}</p>
       </div>
     </div>
   )
